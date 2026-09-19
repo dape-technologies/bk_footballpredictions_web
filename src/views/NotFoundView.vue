@@ -1,0 +1,1 @@
+<template><section class="not-found section-wrap"><p class="kicker">404 / offside</p><h1>This route<br>left the field.</h1><p>The page may have moved or never made the final team sheet.</p><RouterLink to="/" class="button primary">Return home</RouterLink></section></template>

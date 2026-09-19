@@ -1,0 +1,12 @@
+<script setup>
+import { onMounted, ref } from 'vue'
+import { PhArrowRight, PhCalendar, PhClock, PhUserCircle } from '@phosphor-icons/vue'
+import { api } from '../api/client'
+import { useAuthStore } from '../stores/auth'
+import StatePanel from '../components/StatePanel.vue'
+const auth=useAuthStore(), subscriptions=ref([]), loading=ref(true), error=ref('')
+async function load(){loading.value=true;try{subscriptions.value=await api('/v1/me/subscriptions/')}catch(e){error.value=e.message}finally{loading.value=false}}
+async function cancel(id){try{await api(`/v1/me/subscriptions/${id}/cancel/`,{method:'POST'});await load()}catch(e){error.value=e.message}}
+onMounted(load)
+</script>
+<template><div class="public-page account-page"><section class="account-hero section-wrap"><div><p class="kicker">Member desk</p><h1>Welcome back,<br>{{ auth.user?.display_name }}.</h1></div><div class="identity-card"><PhUserCircle :size="30"/><span><strong>{{ auth.user?.display_name }}</strong><small>{{ auth.user?.phone }}</small></span></div></section><section class="section-wrap account-grid"><aside><p class="side-label">Workspace</p><a href="#access" class="active">Access requests</a><RouterLink to="/predictions">Prediction board</RouterLink><RouterLink to="/packages">Explore plans</RouterLink></aside><div id="access" class="account-content"><div class="section-heading"><div><p class="kicker">Your access</p><h2>Subscriptions & requests</h2></div></div><StatePanel v-if="error" title="Could not load your access" :message="error" tone="error"/><div v-if="loading" class="skeleton tall"></div><StatePanel v-else-if="!subscriptions.length" title="No access requests yet" message="Choose a plan and send your first request."><RouterLink to="/packages" class="button primary">Browse plans <PhArrowRight :size="16"/></RouterLink></StatePanel><div v-else class="subscription-list"><article v-for="sub in subscriptions" :key="sub.id"><div><span class="status-chip" :class="sub.status">{{ sub.status }}</span><h3>{{ sub.package.name }}</h3><p>{{ sub.customer_message || 'The owner will update this request shortly.' }}</p></div><dl><div><dt><PhCalendar :size="16"/> Requested</dt><dd>{{ new Date(sub.requested_at).toLocaleDateString('en-UG') }}</dd></div><div><dt><PhClock :size="16"/> Expires</dt><dd>{{ sub.expires_at?new Date(sub.expires_at).toLocaleString('en-UG'):'—' }}</dd></div></dl><button v-if="['pending','active'].includes(sub.status)" class="text-button danger" @click="cancel(sub.id)">Cancel access</button></article></div></div></section></div></template>

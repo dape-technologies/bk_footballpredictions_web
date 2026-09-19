@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#07110d"/>
+  <path d="M8 48 54 18M8 36 42 14" stroke="#c8ff4d" stroke-width="2" opacity=".55"/>
+  <text x="10" y="39" fill="#c8ff4d" font-family="Arial, sans-serif" font-size="22" font-weight="900">BK</text>
+</svg>

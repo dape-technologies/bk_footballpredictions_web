@@ -1,0 +1,12 @@
+<script setup>
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { PhArrowRight, PhShieldCheck } from '@phosphor-icons/vue'
+import { useAuthStore } from '../stores/auth'
+const props=defineProps({mode:String}), auth=useAuthStore(), route=useRoute(), router=useRouter()
+const form=reactive({display_name:'',phone:'',password:''}), loading=ref(false), error=ref('')
+const registering=computed(()=>props.mode==='register')
+watch(()=>props.mode,()=>{error.value=''})
+async function submit(){loading.value=true;error.value='';try{const user=registering.value?await auth.register(form):await auth.login(form);router.push(route.query.next || (user.is_owner?'/owner':'/account'))}catch(e){error.value=e.message}finally{loading.value=false}}
+</script>
+<template><div class="auth-page"><section class="auth-story"><p class="kicker">BK member access</p><h1>{{ registering ? 'Build your match desk.' : 'Return to your desk.' }}</h1><p>One account keeps package requests, active access and premium analysis in one place.</p><div class="auth-proof"><PhShieldCheck :size="22"/><span><strong>Server-enforced access</strong><small>Premium selections never rely on a visual lock.</small></span></div></section><section class="auth-panel"><div class="auth-form-wrap"><p class="form-index">BK / ACCESS</p><h2>{{ registering ? 'Create account' : 'Sign in' }}</h2><p>{{ registering ? 'Use a phone number you can remember.' : 'Enter the details linked to your membership.' }}</p><form @submit.prevent="submit"><label v-if="registering">Display name<input v-model.trim="form.display_name" required autocomplete="name" placeholder="Your name"></label><label>Phone number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX"></label><label>Password<input v-model="form.password" required minlength="8" type="password" :autocomplete="registering?'new-password':'current-password'" placeholder="Minimum 8 characters"></label><p v-if="error" class="form-error">{{ error }}</p><button class="button primary full" :disabled="loading">{{ loading?'Please wait…':registering?'Create account':'Sign in' }} <PhArrowRight :size="17"/></button></form><p class="auth-switch">{{ registering?'Already registered?':'New to BK?' }} <RouterLink :to="registering?'/login':'/register'">{{ registering?'Sign in':'Create account' }}</RouterLink></p></div></section></div></template>
