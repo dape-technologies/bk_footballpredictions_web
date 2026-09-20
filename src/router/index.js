@@ -25,7 +25,9 @@ const router = createRouter({
   ],
 })
 router.beforeEach(async (to) => {
-  const auth = useAuthStore(); await auth.initialize()
+  const auth = useAuthStore()
+  if (to.meta.auth || to.meta.owner || to.meta.guest) await auth.initialize()
+  else auth.initialize()
   if (to.meta.auth && !auth.isAuthenticated) return { path: '/login', query: { next: to.fullPath } }
   if (to.meta.owner && !auth.isOwner) return { path: '/login', query: { next: '/owner' } }
   if (to.meta.guest && auth.isAuthenticated) return auth.isOwner ? '/owner' : '/account'

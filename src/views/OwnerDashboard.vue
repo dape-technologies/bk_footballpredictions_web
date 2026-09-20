@@ -29,7 +29,7 @@ const predictionForm = reactive({ home_team:'', away_team:'', competition:'', ki
 const winForm = reactive({ title:'', summary:'', odds:'', settled_at:'', is_published:true })
 const testimonialForm = reactive({ member_name:'', quote:'', member_since:'', is_published:true, display_order:0 })
 const money=(value)=>new Intl.NumberFormat('en-UG').format(value||0)
-const formatDate=(value)=>value?new Intl.DateTimeFormat('en-UG',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'—'
+const formatDate=(value)=>value?new Intl.DateTimeFormat('en-UG',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'Not set'
 
 async function loadAll(){loading.value=true;error.value='';try{const data=await Promise.all([
   api('/v1/owner/dashboard/'),api('/v1/owner/packages/'),api('/v1/owner/predictions/'),api('/v1/owner/subscriptions/'),api('/v1/owner/recent-wins/'),api('/v1/owner/testimonials/'),api('/v1/owner/customers/'),
@@ -81,7 +81,7 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="section==='access'">
-          <section class="owner-panel"><div class="panel-heading"><div><p>Manual membership</p><h2>Access requests</h2></div><span class="queue-count">{{ pending.length }} pending</span></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Value</th><th>Status</th><th>Requested</th><th>Decision</th></tr></thead><tbody><tr v-for="sub in subscriptions" :key="sub.id"><td><strong>{{ sub.user.display_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>UGX {{ money(sub.price_snapshot) }}</td><td><span :class="['status-chip',sub.status]">{{ sub.status }}</span></td><td>{{ formatDate(sub.requested_at) }}</td><td><div class="decision-actions" v-if="sub.status==='pending'"><button class="table-action approve" :disabled="saving" @click="decide(sub,'approve')">Approve</button><button class="table-action reject" :disabled="saving" @click="decide(sub,'reject')">Reject</button></div><button v-else-if="sub.status==='active'" class="table-action reject" @click="decide(sub,'cancel')">Cancel</button><span v-else>—</span></td></tr></tbody></table></div></section>
+          <section class="owner-panel"><div class="panel-heading"><div><p>Manual membership</p><h2>Access requests</h2></div><span class="queue-count">{{ pending.length }} pending</span></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Value</th><th>Status</th><th>Requested</th><th>Decision</th></tr></thead><tbody><tr v-for="sub in subscriptions" :key="sub.id"><td><strong>{{ sub.user.display_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>UGX {{ money(sub.price_snapshot) }}</td><td><span :class="['status-chip',sub.status]">{{ sub.status }}</span></td><td>{{ formatDate(sub.requested_at) }}</td><td><div class="decision-actions" v-if="sub.status==='pending'"><button class="table-action approve" :disabled="saving" @click="decide(sub,'approve')">Approve</button><button class="table-action reject" :disabled="saving" @click="decide(sub,'reject')">Reject</button></div><button v-else-if="sub.status==='active'" class="table-action reject" @click="decide(sub,'cancel')">Cancel</button><span v-else>None</span></td></tr></tbody></table></div></section>
         </template>
 
         <template v-else-if="section==='content'">
