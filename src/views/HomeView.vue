@@ -13,6 +13,10 @@ const errors = ref({})
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const matchday = new Intl.DateTimeFormat('en-UG', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date())
 const packagePickCount = (plan) => predictions.value.filter((pick) => pick.package === plan.id).length
+const brandLines = [
+  { text: 'BK FOOTBALL', palette: 'white' },
+  { text: 'PREDICTIONS', palette: 'green' },
+]
 
 onMounted(async () => {
   const resources = [
@@ -56,9 +60,10 @@ onMounted(async () => {
             <span class="h-px w-8 bg-[#c7ff36]/60 sm:w-14"></span>
           </div>
 
-          <h1 class="hero-brand-title mt-6 max-w-[12ch] text-balance text-[clamp(3.2rem,8.6vw,8rem)] font-black uppercase leading-[.8] tracking-[-.075em]" aria-label="BK Football Predictions">
-            <span class="block">BK Football</span>
-            <span class="hero-brand-accent block text-[#c7ff36]">Predictions</span>
+          <h1 class="hero-brand-title mt-7 text-[clamp(2.7rem,6.4vw,6.2rem)] uppercase leading-[.88]" aria-label="BK Football Predictions">
+            <span v-for="(line, lineIndex) in brandLines" :key="line.text" :class="['brand-line', `brand-line--${line.palette}`]" aria-hidden="true">
+              <span v-for="(letter, letterIndex) in Array.from(line.text)" :key="`${line.text}-${letterIndex}`" :data-letter="letter === ' ' ? '' : letter" :class="['depth-letter', { 'depth-letter--space': letter === ' ' }]" :style="{ '--letter-index': (lineIndex * 12) + letterIndex }">{{ letter === ' ' ? '\u00a0' : letter }}</span>
+            </span>
           </h1>
           <p class="mt-6 text-balance text-xl font-semibold tracking-[-.025em] text-[#f2f4ea] sm:text-2xl">Join Us or See Us Win</p>
           <p class="mt-3 max-w-2xl text-pretty text-sm leading-6 text-white/55 sm:text-base">Daily picks, clear reasoning and transparent results in one fast football app.</p>
@@ -194,13 +199,64 @@ onMounted(async () => {
 .hero-orbit:nth-of-type(3) { animation-delay: -4s; }
 
 .hero-brand-title {
-  animation: brand-breathe 4.8s cubic-bezier(.45, 0, .2, 1) infinite;
-  filter: drop-shadow(0 1.5rem 3rem rgb(0 0 0 / 0.36));
-  transform-origin: center;
+  width: min(100%, 61rem);
+  font-family: "Outfit Variable", "Segoe UI", sans-serif;
+  filter: drop-shadow(0 1.25rem 2.5rem rgb(0 0 0 / 0.42));
+  letter-spacing: -.055em;
 }
 
-.hero-brand-accent {
-  animation: brand-glow 2.8s ease-in-out infinite;
+.brand-line {
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.brand-line--white {
+  --letter-face: #f4f7f1;
+  --letter-edge: #b9d66f;
+  --letter-depth: #33431f;
+}
+
+.brand-line--green {
+  --letter-face: #d7ff59;
+  --letter-edge: #9fc82f;
+  --letter-depth: #304712;
+}
+
+.depth-letter {
+  position: relative;
+  z-index: 0;
+  display: inline-block;
+  isolation: isolate;
+  min-width: .57em;
+  color: var(--letter-face);
+  font-weight: 900;
+  text-shadow:
+    .018em .018em 0 var(--letter-edge),
+    0 .14em .35em rgb(0 0 0 / .44);
+  animation: letter-depth 1.8s cubic-bezier(.45, 0, .55, 1) alternate infinite;
+  animation-delay: calc(var(--letter-index) * -95ms);
+  transform: translate3d(-.012em, -.008em, 0);
+  will-change: transform;
+}
+
+.depth-letter::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: attr(data-letter);
+  color: var(--letter-depth);
+  -webkit-text-stroke: .012em var(--letter-edge);
+  text-shadow:
+    .025em .025em 0 var(--letter-depth),
+    .05em .05em 0 #263715,
+    .075em .075em 0 #1d2a10,
+    .1em .1em 0 #131c0b;
+  transform: translate3d(.075em, .085em, 0);
+}
+
+.depth-letter--space {
+  min-width: .25em;
 }
 
 .matchday-strip {
@@ -229,19 +285,17 @@ onMounted(async () => {
   50% { transform: translateY(-12px) rotate(4deg); }
 }
 
-@keyframes brand-breathe {
-  0%, 100% { transform: scale(1); letter-spacing: -0.075em; }
-  50% { transform: scale(1.012); letter-spacing: -0.068em; }
-}
-
-@keyframes brand-glow {
-  0%, 100% { text-shadow: 0 0 0 rgb(199 255 54 / 0), 0 0 1.2rem rgb(199 255 54 / 0.12); }
-  50% { text-shadow: 0 0 1px rgb(242 244 234 / 0.5), 0 0 2.4rem rgb(199 255 54 / 0.32); }
+@keyframes letter-depth {
+  0% {
+    transform: translate3d(-.012em, -.008em, 0);
+  }
+  100% {
+    transform: translate3d(.026em, .018em, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-orbit,
-  .hero-brand-title,
-  .hero-brand-accent { animation: none; }
+  .depth-letter { animation: none; }
 }
 </style>
