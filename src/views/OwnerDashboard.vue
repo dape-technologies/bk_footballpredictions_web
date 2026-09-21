@@ -12,7 +12,7 @@ import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const section = ref('overview'), loading = ref(true), saving = ref(false), error = ref(''), notice = ref('')
-const metrics = ref({}), packages = ref([]), predictions = ref([]), subscriptions = ref([]), wins = ref([]), testimonials = ref([]), customers = ref([])
+const metrics = ref({}), packages = ref([]), predictions = ref([]), subscriptions = ref([]), wins = ref([]), testimonials = ref([]), customers = ref([]), activities = ref([])
 const packageFile = ref(null), winFile = ref(null), confirmation = ref(null)
 const sections = [
   { id:'overview', label:'Overview', note:'Operating pulse', icon:PhHouse },
@@ -21,6 +21,7 @@ const sections = [
   { id:'access', label:'Access queue', note:'Approve members', icon:PhListChecks },
   { id:'content', label:'Proof & voices', note:'Wins and testimonials', icon:PhCirclesThreePlus },
   { id:'members', label:'Members', note:'Audience controls', icon:PhUsersThree },
+  { id:'activity', label:'Activity', note:'System audit trail', icon:PhClock },
 ]
 const activeMeta = computed(() => sections.find((item)=>item.id===section.value))
 const pending = computed(()=>subscriptions.value.filter((item)=>item.status==='pending'))
@@ -32,8 +33,8 @@ const money=(value)=>new Intl.NumberFormat('en-UG').format(value||0)
 const formatDate=(value)=>value?new Intl.DateTimeFormat('en-UG',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'Not set'
 
 async function loadAll(){loading.value=true;error.value='';try{const data=await Promise.all([
-  api('/v1/owner/dashboard/'),api('/v1/owner/packages/'),api('/v1/owner/predictions/'),api('/v1/owner/subscriptions/'),api('/v1/owner/recent-wins/'),api('/v1/owner/testimonials/'),api('/v1/owner/customers/'),
-]);[metrics.value,packages.value,predictions.value,subscriptions.value,wins.value,testimonials.value,customers.value]=data}catch(e){error.value=e.message}finally{loading.value=false}}
+  api('/v1/owner/dashboard/'),api('/v1/owner/packages/'),api('/v1/owner/predictions/'),api('/v1/owner/subscriptions/'),api('/v1/owner/recent-wins/'),api('/v1/owner/testimonials/'),api('/v1/owner/customers/'),api('/v1/owner/activities/'),
+]);[metrics.value,packages.value,predictions.value,subscriptions.value,wins.value,testimonials.value,customers.value,activities.value]=data}catch(e){error.value=e.message}finally{loading.value=false}}
 function flash(text){notice.value=text;setTimeout(()=>{notice.value=''},3500)}
 async function createPackage(){saving.value=true;error.value='';try{const data=new FormData();Object.entries(packageForm).forEach(([key,value])=>data.append(key,key==='benefits'?JSON.stringify(value.split('\n').map(x=>x.trim()).filter(Boolean)):value));if(packageFile.value)data.append('image',packageFile.value);await api('/v1/owner/packages/',{method:'POST',body:data});Object.assign(packageForm,{name:'',slug:'',description:'',price:'',currency:'UGX',duration_days:1,access_label:'Premium predictions',benefits:'',is_active:true,is_featured:false,display_order:0});packageFile.value=null;flash('Package published.');await loadAll()}catch(e){error.value=e.message}finally{saving.value=false}}
 async function createPrediction(){saving.value=true;error.value='';try{const payload={...predictionForm,kickoff_at:new Date(predictionForm.kickoff_at).toISOString(),package:predictionForm.access_level==='premium'?predictionForm.package:null,odds:predictionForm.odds||null};await api('/v1/owner/predictions/',{method:'POST',body:JSON.stringify(payload)});Object.assign(predictionForm,{home_team:'',away_team:'',competition:'',kickoff_at:'',access_level:'free',package:null,market:'',selection:'',odds:'',confidence:70,analysis:'',result:'pending',is_published:true});flash('Prediction added to the board.');await loadAll()}catch(e){error.value=e.message}finally{saving.value=false}}
@@ -54,7 +55,7 @@ onMounted(loadAll)
       <BrandMark />
       <p class="owner-label">Owner control room</p>
       <nav><button v-for="item in sections" :key="item.id" :class="{active:section===item.id}" @click="section=item.id"><component :is="item.icon" :size="20"/><span><strong>{{ item.label }}</strong><small>{{ item.note }}</small></span></button></nav>
-      <div class="owner-identity"><span>{{ auth.user?.display_name?.charAt(0) }}</span><div><strong>{{ auth.user?.display_name }}</strong><small>Owner access</small></div></div>
+      <div class="owner-identity"><span>{{ auth.user?.full_name?.charAt(0) }}</span><div><strong>{{ auth.user?.full_name }}</strong><small>Owner access</small></div></div>
       <button class="owner-signout" @click="auth.logout"><PhSignOut :size="18"/> Sign out</button>
     </aside>
 
@@ -68,7 +69,7 @@ onMounted(loadAll)
         <template v-else-if="section==='overview'">
           <div class="owner-kpis"><article><span>Audience</span><strong>{{ metrics.customers }}</strong><small>registered members</small></article><article class="attention"><span>Access queue</span><strong>{{ metrics.pending_requests }}</strong><small>awaiting decision</small></article><article><span>Live access</span><strong>{{ metrics.active_subscriptions }}</strong><small>active subscriptions</small></article><article><span>Board</span><strong>{{ metrics.published_predictions }}</strong><small>published predictions</small></article></div>
           <div class="owner-grid"><section class="owner-panel wide"><div class="panel-heading"><div><p>Package signal</p><h2>Demand by access plan</h2></div><PhChartLineUp :size="24"/></div><div class="demand-list"><div v-for="plan in metrics.package_demand" :key="plan.id"><strong>{{ plan.name }}</strong><span><i :style="{width:`${Math.min(100,plan.request_count*12)}%`}"></i></span><b>{{ plan.request_count }} requests / {{ plan.active_count }} active</b></div></div></section><section class="owner-panel"><div class="panel-heading"><div><p>Informational value</p><h2>Active access</h2></div></div><strong class="money-figure"><small>UGX</small>{{ money(metrics.informational_value) }}</strong><p class="muted">No payment is processed in the MVP. This is the listed value of manually activated access.</p></section></div>
-          <section class="owner-panel"><div class="panel-heading"><div><p>Immediate queue</p><h2>Requests needing a decision</h2></div><button class="text-button" @click="section='access'">Open queue</button></div><div v-if="!pending.length" class="empty-row">The access queue is clear.</div><div v-else class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Requested</th><th>Action</th></tr></thead><tbody><tr v-for="sub in pending.slice(0,5)" :key="sub.id"><td><strong>{{ sub.user.display_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>{{ formatDate(sub.requested_at) }}</td><td><button class="table-action approve" @click="decide(sub,'approve')">Approve</button></td></tr></tbody></table></div></section>
+          <section class="owner-panel"><div class="panel-heading"><div><p>Immediate queue</p><h2>Requests needing a decision</h2></div><button class="text-button" @click="section='access'">Open queue</button></div><div v-if="!pending.length" class="empty-row">The access queue is clear.</div><div v-else class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Requested</th><th>Action</th></tr></thead><tbody><tr v-for="sub in pending.slice(0,5)" :key="sub.id"><td><strong>{{ sub.user.full_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>{{ formatDate(sub.requested_at) }}</td><td><button class="table-action approve" @click="decide(sub,'approve')">Approve</button></td></tr></tbody></table></div></section>
         </template>
 
         <template v-else-if="section==='packages'">
@@ -81,7 +82,7 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="section==='access'">
-          <section class="owner-panel"><div class="panel-heading"><div><p>Manual membership</p><h2>Access requests</h2></div><span class="queue-count">{{ pending.length }} pending</span></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Value</th><th>Status</th><th>Requested</th><th>Decision</th></tr></thead><tbody><tr v-for="sub in subscriptions" :key="sub.id"><td><strong>{{ sub.user.display_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>UGX {{ money(sub.price_snapshot) }}</td><td><span :class="['status-chip',sub.status]">{{ sub.status }}</span></td><td>{{ formatDate(sub.requested_at) }}</td><td><div class="decision-actions" v-if="sub.status==='pending'"><button class="table-action approve" :disabled="saving" @click="decide(sub,'approve')">Approve</button><button class="table-action reject" :disabled="saving" @click="decide(sub,'reject')">Reject</button></div><button v-else-if="sub.status==='active'" class="table-action reject" @click="decide(sub,'cancel')">Cancel</button><span v-else>None</span></td></tr></tbody></table></div></section>
+          <section class="owner-panel"><div class="panel-heading"><div><p>Manual membership</p><h2>Access requests</h2></div><span class="queue-count">{{ pending.length }} pending</span></div><div class="table-wrap"><table><thead><tr><th>Member</th><th>Package</th><th>Value</th><th>Status</th><th>Requested</th><th>Decision</th></tr></thead><tbody><tr v-for="sub in subscriptions" :key="sub.id"><td><strong>{{ sub.user.full_name }}</strong><small>{{ sub.user.phone }}</small></td><td>{{ sub.package.name }}</td><td>UGX {{ money(sub.price_snapshot) }}</td><td><span :class="['status-chip',sub.status]">{{ sub.status }}</span></td><td>{{ formatDate(sub.requested_at) }}</td><td><div class="decision-actions" v-if="sub.status==='pending'"><button class="table-action approve" :disabled="saving" @click="decide(sub,'approve')">Approve</button><button class="table-action reject" :disabled="saving" @click="decide(sub,'reject')">Reject</button></div><button v-else-if="sub.status==='active'" class="table-action reject" @click="decide(sub,'cancel')">Cancel</button><span v-else>None</span></td></tr></tbody></table></div></section>
         </template>
 
         <template v-else-if="section==='content'">
@@ -89,7 +90,11 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="section==='members'">
-          <section class="owner-panel"><div class="panel-heading"><div><p>Audience</p><h2>Registered members</h2></div><span>{{ customers.length }} total</span></div><div class="member-grid"><article v-for="customer in customers" :key="customer.id"><span>{{ customer.display_name.charAt(0) }}</span><div><h3>{{ customer.display_name }}</h3><p>{{ customer.phone }}</p><small>Joined {{ new Date(customer.created_at).toLocaleDateString('en-UG') }}</small></div><button :class="['table-action',customer.is_blocked?'approve':'reject']" @click="toggleBlock(customer)">{{ customer.is_blocked?'Restore':'Block' }}</button></article></div></section>
+          <section class="owner-panel"><div class="panel-heading"><div><p>Audience</p><h2>Registered members</h2></div><span>{{ customers.length }} total</span></div><div class="member-grid"><article v-for="customer in customers" :key="customer.id"><span>{{ customer.full_name.charAt(0) }}</span><div><h3>{{ customer.full_name }}</h3><p>{{ customer.phone }}</p><small>Joined {{ new Date(customer.created_at).toLocaleDateString('en-UG') }}</small></div><button :class="['table-action',customer.is_blocked?'approve':'reject']" @click="toggleBlock(customer)">{{ customer.is_blocked?'Restore':'Block' }}</button></article></div></section>
+        </template>
+
+        <template v-else-if="section==='activity'">
+          <section class="owner-panel"><div class="panel-heading"><div><p>Audit trail</p><h2>Recent system activity</h2></div><span>{{ activities.length }} events</span></div><div v-if="!activities.length" class="empty-row">No activity has been recorded yet.</div><div v-else class="table-wrap"><table><thead><tr><th>When</th><th>Category</th><th>Actor</th><th>Activity</th><th>IP address</th></tr></thead><tbody><tr v-for="activity in activities" :key="activity.id"><td>{{ formatDate(activity.created_at) }}</td><td><span class="status-chip active">{{ activity.category }}</span></td><td><strong>{{ activity.actor_name || 'System' }}</strong><small>{{ activity.actor_phone }}</small></td><td>{{ activity.description }}</td><td>{{ activity.ip_address || 'Not recorded' }}</td></tr></tbody></table></div></section>
         </template>
       </div>
     </main>

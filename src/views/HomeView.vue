@@ -212,6 +212,11 @@ onMounted(async () => {
   filter: drop-shadow(0 1.25rem 2.5rem rgb(0 0 0 / 0.42));
   font-kerning: normal;
   font-feature-settings: "kern" 1;
+  transform-origin: 50% 58%;
+  will-change: transform, filter;
+  animation:
+    hero-logo-seesaw 3.2s cubic-bezier(.45, 0, .55, 1) infinite,
+    hero-logo-glow 2.4s ease-in-out infinite;
 }
 
 .brand-line {
@@ -219,16 +224,44 @@ onMounted(async () => {
   white-space: nowrap;
   font-weight: 900;
   letter-spacing: -.068em;
+  will-change: background-position;
 }
 
 .brand-line--white {
-  color: #f4f7f1;
+  color: transparent;
+  background: linear-gradient(105deg, #f4f7f1 0%, #f4f7f1 30%, #ffffff 41%, #edffc2 48%, #ffffff 55%, #f4f7f1 67%, #f4f7f1 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
   text-shadow: .025em .025em #aebf79, .055em .06em #33431f, .08em .09em #1d2a10;
+  animation: hero-logo-shine 2.9s linear infinite;
 }
 
 .brand-line--green {
-  color: #a8c957;
+  color: transparent;
+  background: linear-gradient(105deg, #91bd31 0%, #a8d83f 30%, #dfff83 41%, #ffffff 49%, #dfff83 56%, #a8d83f 68%, #91bd31 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
   text-shadow: .025em .025em #7f9f35, .055em .06em #304712, .08em .09em #192709;
+  animation: hero-logo-shine 2.9s .18s linear infinite;
+}
+
+@keyframes hero-logo-shine {
+  from { background-position: 125% 50%; }
+  to { background-position: -125% 50%; }
+}
+
+@keyframes hero-logo-seesaw {
+  0%, 100% { transform: rotate(-1.15deg) translateY(0) scale(1); }
+  25% { transform: rotate(0deg) translateY(-2px) scale(1.012); }
+  50% { transform: rotate(1.15deg) translateY(0) scale(1); }
+  75% { transform: rotate(0deg) translateY(2px) scale(.995); }
+}
+
+@keyframes hero-logo-glow {
+  0%, 100% { filter: drop-shadow(0 1.25rem 2.5rem rgb(0 0 0 / .46)) drop-shadow(0 0 .25rem rgb(168 201 87 / .16)); }
+  50% { filter: drop-shadow(0 1.25rem 2.5rem rgb(0 0 0 / .46)) drop-shadow(0 0 2.4rem rgb(190 235 88 / .48)); }
 }
 
 .matchday-strip {
@@ -258,6 +291,6 @@ onMounted(async () => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-characters { animation: none; }
+  .hero-characters, .hero-brand-title, .brand-line { animation: none; }
 }
 </style>

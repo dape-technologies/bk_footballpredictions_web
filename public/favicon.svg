@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#07110d"/>
-  <path d="M8 48 54 18M8 36 42 14" stroke="#c8ff4d" stroke-width="2" opacity=".55"/>
-  <text x="10" y="39" fill="#c8ff4d" font-family="Arial, sans-serif" font-size="22" font-weight="900">BK</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect x="4" y="4" width="120" height="120" rx="24" fill="#070b09"/>
+  <path fill="#070b09" fill-rule="evenodd" stroke="#a8c957" stroke-width="6" stroke-linejoin="round" d="M18 17h33c15 0 24 8 24 21 0 8-4 14-11 18 9 4 14 12 14 23 0 17-10 27-28 27H18V17Zm18 18v14h13c6 0 9-2 9-7s-3-7-9-7H36Zm0 31v21h14c7 0 11-4 11-11 0-6-4-10-11-10H36Z"/>
+  <path fill="#070b09" stroke="#a8c957" stroke-width="6" stroke-linejoin="round" d="M71 17h18v31l20-31h15L99 57l27 49h-18L89 72v34H71V17Z"/>
+  <path d="M74 18v88" stroke="#fff" stroke-width="5"/>
+  <circle cx="74" cy="61" r="17" fill="#070b09" stroke="#fff" stroke-width="5"/>
+  <circle cx="74" cy="61" r="4" fill="#fff"/>
 </svg>
