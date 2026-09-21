@@ -3,7 +3,7 @@
 @theme {
   --font-sans: "Outfit Variable", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "SFMono-Regular", monospace;
-  --color-bk-acid: #d7ff59;
+  --color-bk-acid: #a8c957;
   --color-bk-ink: #070b09;
   --color-bk-panel: #101713;
 }
@@ -16,23 +16,12 @@
     --app-text: #f2f7f3;
     --app-muted: #91a198;
     --app-line: #26342c;
-    --app-accent: #d7ff59;
-    --app-accent-ink: #101606;
-  }
-
-  :root[data-theme="light"] {
-    --app-bg: #eef1ed;
-    --app-surface: #f9fbf8;
-    --app-surface-2: #e4e9e3;
-    --app-text: #0b120e;
-    --app-muted: #58665d;
-    --app-line: #cbd3cc;
-    --app-accent: #9ecb26;
-    --app-accent-ink: #111706;
+    --app-accent: #a8c957;
+    --app-accent-hover: #b8d66c;
+    --app-accent-ink: #0c1208;
   }
 
   html { color-scheme: dark; }
-  html[data-theme="light"] { color-scheme: light; }
   body { background: var(--app-bg); color: var(--app-text); font-family: "Outfit Variable", "Segoe UI", sans-serif; }
   button, a { -webkit-tap-highlight-color: transparent; }
 }
