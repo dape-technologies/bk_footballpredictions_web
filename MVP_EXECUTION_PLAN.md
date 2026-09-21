@@ -217,7 +217,14 @@ CRUD   /api/v1/owner/recent-wins/
 CRUD   /api/v1/owner/testimonials/
 GET    /api/v1/owner/customers/
 POST   /api/v1/owner/customers/{id}/block/
+GET    /api/v1/owner/activities/
 ```
+
+Registration sends `first_name`, `surname`, `date_of_birth`, a normalized unique
+`phone`, `password`, and `password_confirm`. The API requires the member to be at
+least 18 years old. The current privileged role is Product Owner; future roles
+use Django groups and permissions so staff access is not automatically elevated
+to owner access.
 
 Customer ownership must always come from `request.user`. No customer endpoint accepts a user ID from the browser.
 

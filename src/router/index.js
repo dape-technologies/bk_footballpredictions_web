@@ -31,7 +31,7 @@ router.beforeEach(async (to) => {
   else auth.initialize()
   if (to.meta.auth && !auth.isAuthenticated) return { path: '/login' }
   if (to.meta.owner && !auth.isOwner) return { path: '/login', query: { next: '/owner' } }
-  if (to.meta.guest && auth.isAuthenticated) return auth.isOwner ? '/owner' : '/account'
+  if (to.meta.guest && auth.isAuthenticated) return auth.isOwner ? '/owner' : '/'
   return true
 })
 

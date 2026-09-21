@@ -9,7 +9,7 @@ const props = defineProps({ mode: { type: String, required: true } })
 const emit = defineEmits(['close', 'switch'])
 const auth = useAuthStore()
 const router = useRouter()
-const form = reactive({ display_name: '', phone: '', password: '' })
+const form = reactive({ first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '' })
 const loading = ref(false)
 const error = ref('')
 const subscriptions = ref([])
@@ -17,6 +17,13 @@ const freeTip = ref(null)
 const registering = computed(() => props.mode === 'register')
 const isAccount = computed(() => props.mode === 'account')
 const isFreeTip = computed(() => props.mode === 'free-tip')
+const maximumBirthDate = (() => {
+  const date = new Date()
+  date.setFullYear(date.getFullYear() - 18)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+})()
 
 function onKeydown(event) {
   if (event.key === 'Escape') emit('close')
@@ -42,14 +49,25 @@ async function loadDialogData() {
 }
 
 async function submit() {
-  loading.value = true
   error.value = ''
+  if (registering.value && form.password !== form.password_confirm) {
+    error.value = 'The passwords do not match.'
+    return
+  }
+  loading.value = true
   try {
-    const user = registering.value ? await auth.register(form) : await auth.login(form)
+    const payload = registering.value
+      ? { first_name: form.first_name, surname: form.surname, date_of_birth: form.date_of_birth, phone: form.phone, password: form.password, password_confirm: form.password_confirm }
+      : { phone: form.phone, password: form.password }
+    const user = registering.value ? await auth.register(payload) : await auth.login(payload)
     if (user.is_owner) {
       emit('close')
       router.push('/owner')
-    } else emit('switch', 'account')
+    } else {
+      emit('close')
+      await router.push('/')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   } catch (err) { error.value = err.message }
   finally { loading.value = false }
 }
@@ -105,7 +123,7 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else-if="isAccount">
-          <div class="flex items-center gap-3 pr-12"><span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhUserCircle :size="28" /></span><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[var(--app-accent)]">Member access</p><h2 class="text-2xl font-black">{{ auth.user?.display_name }}</h2></div></div>
+          <div class="flex items-center gap-3 pr-12"><span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhUserCircle :size="28" /></span><div><p class="text-xs font-bold uppercase tracking-[.16em] text-[var(--app-accent)]">Member access</p><h2 class="text-2xl font-black">{{ auth.user?.first_name }} {{ auth.user?.surname }}</h2></div></div>
           <p class="mt-2 text-sm text-white/45">{{ auth.user?.phone }}</p>
           <p v-if="error" class="mt-6 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ error }}</p>
           <div v-if="loading" class="mt-7 h-52 animate-pulse rounded-2xl bg-white/5"></div>
@@ -125,9 +143,14 @@ onBeforeUnmount(() => {
           <h2 class="mt-3 text-4xl font-black tracking-[-.055em]">{{ registering ? 'Create your account' : 'Welcome back' }}</h2>
           <p class="mt-3 text-white/50">{{ registering ? 'Use your name and active phone number.' : 'Enter the details linked to your BK membership.' }}</p>
           <form class="mt-7 grid gap-4" @submit.prevent="submit">
-            <label v-if="registering" class="grid gap-2 text-sm font-semibold">Display name<input v-model.trim="form.display_name" required autocomplete="name" placeholder="Your name" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+            <div v-if="registering" class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2 text-sm font-semibold">First name<input v-model.trim="form.first_name" required autocomplete="given-name" placeholder="First name" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+              <label class="grid gap-2 text-sm font-semibold">Surname<input v-model.trim="form.surname" required autocomplete="family-name" placeholder="Surname" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+            </div>
+            <label v-if="registering" class="grid gap-2 text-sm font-semibold">Date of birth<input v-model="form.date_of_birth" required type="date" autocomplete="bday" :max="maximumBirthDate" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"><small class="font-normal normal-case tracking-normal text-white/40">You must be 18 or older.</small></label>
             <label class="grid gap-2 text-sm font-semibold">Phone number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
-            <label class="grid gap-2 text-sm font-semibold">Password<input v-model="form.password" required minlength="8" type="password" :autocomplete="registering ? 'new-password' : 'current-password'" placeholder="Minimum 8 characters" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+            <label class="grid gap-2 text-sm font-semibold">Password<input v-model="form.password" required minlength="4" type="password" :autocomplete="registering ? 'new-password' : 'current-password'" :placeholder="registering ? 'Minimum 4 characters' : 'Your password'" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+            <label v-if="registering" class="grid gap-2 text-sm font-semibold">Confirm password<input v-model="form.password_confirm" required minlength="4" type="password" autocomplete="new-password" placeholder="Enter the password again" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
             <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
             <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Please wait...' : registering ? 'Create account' : 'Sign in' }} <PhArrowRight :size="18" /></button>
           </form>

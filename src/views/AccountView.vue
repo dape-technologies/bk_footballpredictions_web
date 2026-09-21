@@ -27,7 +27,7 @@ onMounted(load)
 
 <template>
   <div class="mx-auto min-h-[calc(100dvh-4rem)] max-w-5xl px-4 py-10 sm:px-6 md:py-14 lg:px-8">
-    <header class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-sm font-semibold text-[var(--app-accent)]">Member account</p><h1 class="mt-3 text-4xl font-black tracking-[-.055em] sm:text-6xl">Hello, {{ auth.user?.display_name }}.</h1></div><div class="flex items-center gap-3 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-4"><PhUserCircle :size="32" /><span><strong class="block">{{ auth.user?.display_name }}</strong><small class="text-[var(--app-muted)]">{{ auth.user?.phone }}</small></span></div></header>
+    <header class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-sm font-semibold text-[var(--app-accent)]">Member account</p><h1 class="mt-3 text-4xl font-black tracking-[-.055em] sm:text-6xl">Hello, {{ auth.user?.first_name }}.</h1></div><div class="flex items-center gap-3 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-4"><PhUserCircle :size="32" /><span><strong class="block">{{ auth.user?.first_name }} {{ auth.user?.surname }}</strong><small class="text-[var(--app-muted)]">{{ auth.user?.phone }}</small></span></div></header>
     <section class="mt-12"><h2 class="text-2xl font-bold tracking-[-.03em]">Your access</h2><p class="mt-2 text-sm text-[var(--app-muted)]">Track active packages and pending requests.</p>
       <StatePanel v-if="error" title="Could not load your access" :message="error" tone="error" class="mt-6" />
       <div v-if="loading" class="mt-6 h-64 animate-pulse rounded-2xl bg-[var(--app-surface)]"></div>
