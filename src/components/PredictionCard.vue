@@ -29,7 +29,7 @@ const kickoff = computed(() => new Intl.DateTimeFormat('en-UG', { weekday: 'shor
         <div class="flex items-end justify-between gap-4"><div><p :class="['text-xs', featured ? 'text-[var(--app-accent-ink)]/60' : 'text-[var(--app-muted)]']">{{ prediction.market }}</p><strong class="mt-1 block text-lg">{{ prediction.selection }}</strong></div><b v-if="prediction.odds" class="text-3xl tracking-[-.06em] numbers">{{ prediction.odds }}</b></div>
         <p v-if="prediction.analysis" :class="['mt-3 line-clamp-2 text-xs leading-5', featured ? 'text-[var(--app-accent-ink)]/65' : 'text-[var(--app-muted)]']">{{ prediction.analysis }}</p>
       </template>
-      <RouterLink v-else to="/packages" class="flex items-center justify-between gap-3 text-sm font-bold">Unlock this analysis <PhArrowUpRight :size="17" /></RouterLink>
+      <a v-else href="#packages" class="flex items-center justify-between gap-3 text-sm font-bold">Open an access pass <PhArrowUpRight :size="17" /></a>
     </div>
   </article>
 </template>
