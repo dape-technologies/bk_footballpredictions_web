@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PhArrowRight, PhCheck, PhClock, PhCrown } from '@phosphor-icons/vue'
+import { PhArrowRight, PhClock, PhSoccerBall } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import StatePanel from '../components/StatePanel.vue'
@@ -15,6 +15,7 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
+const formatStart = (value) => value ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'To be announced'
 
 onMounted(async () => {
   try { packages.value = await api('/v1/packages/') }
@@ -29,7 +30,7 @@ async function requestAccess(plan) {
   error.value = ''
   try {
     await api('/v1/me/subscriptions/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
-    message.value = `Your ${plan.name} request is now with the owner.`
+    message.value = `${plan.name} purchase request sent.`
   } catch (err) { error.value = err.message }
   finally { submitting.value = null }
 }
@@ -37,19 +38,14 @@ async function requestAccess(plan) {
 
 <template>
   <div class="mx-auto min-h-[calc(100dvh-4rem)] max-w-7xl px-4 py-10 sm:px-6 md:py-14 lg:px-8">
-    <header class="max-w-2xl"><PhCrown :size="34" class="text-[var(--app-accent)]" weight="duotone" /><h1 class="mt-5 text-balance text-4xl font-black tracking-[-.055em] sm:text-6xl">Choose your VIP access.</h1><p class="mt-4 max-w-xl text-[var(--app-muted)]">Select a plan and send an access request. You can track its status from your account.</p></header>
+    <header class="max-w-2xl"><h1 class="text-balance text-4xl font-black tracking-[-.055em] sm:text-6xl">Buy a betslip.</h1></header>
     <StatePanel v-if="message" title="Request received" :message="message" tone="success" class="mt-8" />
     <StatePanel v-if="error" title="Something needs attention" :message="error" tone="error" class="mt-8" />
     <div v-if="loading" class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[30rem] animate-pulse rounded-2xl bg-[var(--app-surface)]"></div></div>
     <div v-else class="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <article v-for="(plan, index) in packages" :key="plan.id" :class="['flex min-h-[30rem] flex-col rounded-2xl border p-6 transition', plan.is_featured ? 'border-[var(--app-accent)] bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'border-[var(--app-line)] bg-[var(--app-surface)]', route.query.plan === plan.slug ? 'ring-2 ring-[var(--app-accent)] ring-offset-4 ring-offset-[var(--app-bg)]' : '']">
-        <div class="flex items-center justify-between text-xs font-bold"><span>Plan {{ index + 1 }}</span><span v-if="route.query.plan === plan.slug" class="rounded-lg bg-[var(--app-accent-ink)]/10 px-2 py-1">Selected</span><span v-else-if="plan.is_featured" class="rounded-lg bg-[var(--app-accent-ink)]/10 px-2 py-1">Most popular</span></div>
-        <p :class="['mt-10 flex items-center gap-2 text-sm', plan.is_featured ? 'text-[var(--app-accent-ink)]/65' : 'text-[var(--app-muted)]']"><PhClock :size="17" /> {{ plan.duration_days }}-day access</p>
-        <h2 class="mt-3 text-3xl font-extrabold tracking-[-.05em]">{{ plan.name }}</h2>
-        <p :class="['mt-3 leading-6', plan.is_featured ? 'text-[var(--app-accent-ink)]/70' : 'text-[var(--app-muted)]']">{{ plan.description }}</p>
-        <div class="mt-7"><small class="block text-xs font-bold">{{ plan.currency }}</small><strong class="text-5xl font-black tracking-[-.07em] numbers">{{ money(plan.price) }}</strong></div>
-        <ul class="mt-7 grid gap-3 text-sm"><li v-for="benefit in plan.benefits" :key="benefit" class="flex items-start gap-2"><PhCheck :size="17" weight="bold" class="mt-0.5 shrink-0" /> {{ benefit }}</li></ul>
-        <button :class="['mt-auto flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 font-bold transition active:scale-[.98]', plan.is_featured ? 'bg-[var(--app-accent-ink)] text-[var(--app-accent)]' : 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]']" :disabled="submitting === plan.id || !plan.is_open" @click="requestAccess(plan)">{{ submitting === plan.id ? 'Sending request...' : plan.is_open ? 'Request access' : 'Requests closed' }} <PhArrowRight :size="17" /></button>
+      <article v-for="plan in packages" :key="plan.id" :class="['flex min-h-[28rem] flex-col overflow-hidden border border-[var(--app-line)] bg-[var(--app-surface)] transition', route.query.plan === plan.slug ? 'ring-2 ring-[var(--app-accent)]' : '']">
+        <div class="grid h-48 place-items-center overflow-hidden bg-[var(--app-surface-2)]"><img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" class="h-full w-full object-cover"><PhSoccerBall v-else :size="56" class="text-[var(--app-accent)]" /></div>
+        <div class="flex flex-1 flex-col p-6"><span class="text-xs font-bold uppercase tracking-wider text-[var(--app-muted)]">{{ plan.package_type }}</span><h2 class="mt-2 text-3xl font-extrabold tracking-[-.05em]">{{ plan.name }}</h2><div class="mt-6 grid grid-cols-2 gap-4 border-y border-[var(--app-line)] py-4"><div><small class="block text-[var(--app-muted)]">Probability</small><strong class="text-2xl">{{ plan.win_probability }}%</strong></div><div><small class="block text-[var(--app-muted)]">Commences</small><strong class="mt-1 flex items-center gap-1 text-sm"><PhClock :size="15" />{{ formatStart(plan.commences_at) }}</strong></div></div><div class="my-6"><small class="block text-xs font-bold">{{ plan.currency }}</small><strong class="text-4xl font-black tracking-[-.07em] numbers">{{ money(plan.price) }}</strong></div><button class="mt-auto flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-4 font-bold text-[var(--app-accent-ink)] transition active:scale-[.98]" :disabled="submitting === plan.id || !plan.is_open" @click="requestAccess(plan)">{{ submitting === plan.id ? 'Processing…' : plan.is_open ? 'Buy slip' : 'Unavailable' }} <PhArrowRight :size="17" /></button></div>
       </article>
     </div>
   </div>

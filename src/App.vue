@@ -10,7 +10,7 @@ import { useAuthStore } from './stores/auth'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const isOwnerArea = computed(() => route.path.startsWith('/owner'))
+const isOwnerArea = computed(() => route.path.startsWith('/admin'))
 const showPublicShell = computed(() => !isOwnerArea.value)
 const deferredInstall = ref(null)
 const canInstall = ref(false)
@@ -25,7 +25,7 @@ const activeSubscriptions = computed(() => subscriptions.value.filter((subscript
 const navigation = computed(() => [
   { id: 'top', label: 'Home', icon: PhHouse },
   { id: 'packages', label: 'VIP access', icon: PhCrown },
-  { id: 'results', label: 'Results', icon: PhChartLineUp },
+  { id: 'results', label: 'Recent wins', icon: PhChartLineUp },
 ])
 
 function openDialog(mode) {
@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
     <footer v-if="showPublicShell" id="about" class="border-t border-[var(--app-line)] bg-[#080d0a]">
       <div class="mx-auto flex max-w-7xl flex-col justify-between gap-6 px-4 py-8 text-sm text-[var(--app-muted)] sm:px-6 md:flex-row md:items-center lg:px-8">
         <div><BrandMark compact /><p class="mt-3">Independent football analysis for adults 18+. Play responsibly.</p></div>
-        <div class="flex flex-wrap items-center gap-5"><button type="button" @click="scrollToSection('packages')">VIP access</button><button type="button" @click="scrollToSection('results')">Results</button><span>© {{ new Date().getFullYear() }} BK</span></div>
+        <div class="flex flex-wrap items-center gap-5"><button type="button" @click="scrollToSection('packages')">VIP access</button><button type="button" @click="scrollToSection('results')">Recent wins</button><span>© {{ new Date().getFullYear() }} BK</span></div>
       </div>
     </footer>
 

@@ -34,7 +34,7 @@ async function submit() {
       ? { first_name: form.first_name, surname: form.surname, date_of_birth: form.date_of_birth, phone: form.phone, password: form.password, password_confirm: form.password_confirm }
       : { phone: form.phone, password: form.password }
     const user = registering.value ? await auth.register(payload) : await auth.login(payload)
-    await router.push(user.is_owner ? '/owner' : '/')
+    await router.push(user.is_owner ? '/admin' : '/')
     if (!user.is_owner) window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) { error.value = err.message }
   finally { loading.value = false }
