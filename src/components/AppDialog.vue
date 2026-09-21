@@ -62,7 +62,7 @@ async function submit() {
     const user = registering.value ? await auth.register(payload) : await auth.login(payload)
     if (user.is_owner) {
       emit('close')
-      router.push('/owner')
+      router.push('/admin')
     } else {
       emit('close')
       await router.push('/')
@@ -130,7 +130,8 @@ onBeforeUnmount(() => {
           <div v-else-if="subscriptions.length" class="mt-7 grid gap-3">
             <article v-for="sub in subscriptions" :key="sub.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
               <div class="flex items-center justify-between gap-4"><h3 class="font-bold">{{ sub.package.name }}</h3><span :class="['rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider', sub.status === 'active' ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-white/7 text-white/55']">{{ sub.status }}</span></div>
-              <dl class="mt-4 grid grid-cols-2 gap-4 text-xs"><div><dt class="flex items-center gap-1.5 text-white/40"><PhCalendar :size="14" /> Requested</dt><dd class="mt-1 font-semibold">{{ new Date(sub.requested_at).toLocaleDateString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-white/40"><PhClock :size="14" /> Expires</dt><dd class="mt-1 font-semibold">{{ sub.expires_at ? new Date(sub.expires_at).toLocaleDateString('en-UG') : 'Not set' }}</dd></div></dl>
+              <dl class="mt-4 grid grid-cols-2 gap-4 text-xs"><div><dt class="flex items-center gap-1.5 text-white/40"><PhCalendar :size="14" /> Payment</dt><dd class="mt-1 font-semibold capitalize">{{ sub.payment_status || 'Not recorded' }}</dd><small v-if="sub.payment_reference" class="mt-1 block text-[10px] text-white/35">{{ sub.payment_reference }}</small></div><div><dt class="flex items-center gap-1.5 text-white/40"><PhClock :size="14" /> Expires</dt><dd class="mt-1 font-semibold">{{ sub.expires_at ? new Date(sub.expires_at).toLocaleDateString('en-UG') : 'Not set' }}</dd></div></dl>
+              <div v-if="sub.grants_access" class="mt-4 grid gap-3 border-t border-white/10 pt-4"><div><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block text-base font-black tracking-wider text-[var(--app-accent)]">{{ sub.code }}</code></div><a :href="sub.betslip_link" target="_blank" rel="noopener" class="flex min-h-10 items-center justify-center gap-2 bg-[var(--app-accent)] px-4 text-sm font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="16" /></a></div>
               <button v-if="['pending', 'active'].includes(sub.status)" type="button" class="mt-4 text-xs font-bold text-red-300 underline underline-offset-4" @click="cancelAccess(sub.id)">Cancel access</button>
             </article>
           </div>
