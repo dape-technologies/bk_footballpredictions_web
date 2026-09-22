@@ -1,6 +1,6 @@
 <script setup>
 import { inject, onMounted, ref } from 'vue'
-import { PhArrowRight, PhChartLineUp, PhClock, PhLightning, PhShieldCheck, PhSoccerBall, PhTarget, PhTrophy } from '@phosphor-icons/vue'
+import { PhArrowRight, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import HeroWordmark from '../components/HeroWordmark.vue'
 import { useAuthStore } from '../stores/auth'
@@ -61,44 +61,44 @@ onMounted(async () => {
   <div class="overflow-hidden">
     <section id="top" class="hero-stage relative isolate scroll-mt-16 overflow-hidden bg-[#070908] text-[#f2f4ea]">
       <div class="hero-lights pointer-events-none absolute inset-0 -z-20" aria-hidden="true"></div>
-      <div class="hero-pitch pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[34%] opacity-45" aria-hidden="true"></div>
-      <img src="/illustrations/football-hero-characters.png" alt="" class="hero-characters pointer-events-none absolute inset-0 -z-10 hidden h-full w-full object-cover opacity-55 mix-blend-screen md:block" aria-hidden="true" />
+      <div class="hero-ledger pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[42%] opacity-55" aria-hidden="true"></div>
+      <img src="/illustrations/income-hero-visual.png" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" />
 
       <div class="relative mx-auto max-w-7xl px-4 pb-20 pt-7 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8 lg:pb-28">
-        <button type="button" class="group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white" @click="openDialog?.('free-tip')">
+        <button type="button" class="group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]" @click="openDialog?.('free-tip')">
           <span class="grid size-7 place-items-center rounded-full bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhLightning :size="14" weight="fill" /></span>
-          <span><span class="block text-[9px] text-white/45">Open match insight</span>Reveal the free read</span>
+          <span><span class="block text-[9px] text-white/45">Today's earning angle</span>Reveal the free pick</span>
           <PhArrowRight class="ml-1 text-[var(--app-accent)] transition group-hover:translate-x-1" :size="15" />
         </button>
 
         <div class="mx-auto flex min-w-0 w-full max-w-5xl flex-col items-center py-9 text-center sm:py-12">
           <div class="inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.28em] text-[var(--app-accent)] sm:text-xs">
             <span class="h-px w-8 bg-[var(--app-accent)]/60 sm:w-14"></span>
-            Football intelligence, clearly called
+            Betting intelligence built for return
             <span class="h-px w-8 bg-[var(--app-accent)]/60 sm:w-14"></span>
           </div>
 
           <HeroWordmark />
-          <p class="mt-6 text-balance text-xl font-semibold tracking-[-.025em] text-[#f2f4ea] sm:text-2xl">Read the match. Own the moment.</p>
-          <p class="mt-3 max-w-2xl text-pretty text-sm leading-6 text-white/55 sm:text-base">Sharp match reads, member-only angles and a public record in one focused football desk.</p>
+          <p class="mt-6 text-balance text-2xl font-black tracking-[-.04em] text-[#f2f4ea] sm:text-3xl">Life Must Change</p>
+          <p class="mt-3 max-w-2xl text-pretty text-base font-medium leading-7 text-white/65 sm:text-lg">You either win with us or see us winning</p>
 
           <div class="mt-7 flex w-full max-w-md flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row">
-            <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-6 font-extrabold text-[var(--app-accent-ink)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-hover)] active:scale-[.98]" @click="scrollTo('packages')">Explore VIP access <PhArrowRight :size="18" /></button>
-            <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--app-accent)]/65 bg-black/20 px-6 font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[var(--app-accent)]/10 active:scale-[.98]" @click="openDialog?.('free-tip')">Reveal the free read <PhLightning :size="18" /></button>
+            <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-6 font-extrabold text-[var(--app-accent-ink)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)] active:scale-[.98]" @click="scrollTo('packages')">View earning packages <PhArrowRight :size="18" /></button>
+            <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--app-accent)]/65 bg-black/20 px-6 font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[var(--app-accent)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)] active:scale-[.98]" @click="openDialog?.('free-tip')">Reveal the free pick <PhLightning :size="18" /></button>
           </div>
 
           <div class="mt-9 grid w-full max-w-2xl grid-cols-3 border-y border-white/10 py-5 text-left sm:border-0 sm:py-0">
             <div class="flex flex-col items-center gap-2 px-2 text-center sm:flex-row sm:justify-center sm:gap-3 sm:text-left">
-              <PhChartLineUp class="text-[var(--app-accent)]" :size="25" weight="duotone" />
-              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Current</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Live match slate</span></div>
+              <PhWallet class="text-[var(--app-accent)]" :size="25" weight="duotone" />
+              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Income focus</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Packages built to earn</span></div>
             </div>
             <div class="flex flex-col items-center gap-2 border-x border-white/10 px-2 text-center sm:flex-row sm:justify-center sm:gap-3 sm:text-left">
-              <PhTarget class="text-[var(--app-accent)]" :size="25" weight="duotone" />
-              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Explained</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Analyst reasoning</span></div>
+              <PhTrendUp class="text-[var(--app-accent)]" :size="25" weight="duotone" />
+              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Value bets</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Selections with purpose</span></div>
             </div>
             <div class="flex flex-col items-center gap-2 px-2 text-center sm:flex-row sm:justify-center sm:gap-3 sm:text-left">
-              <PhTrophy class="text-[var(--app-accent)]" :size="25" weight="duotone" />
-              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Accountable</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Public outcomes</span></div>
+              <PhReceipt class="text-[var(--app-accent)]" :size="25" weight="duotone" />
+              <div><strong class="block text-xs font-extrabold uppercase tracking-wider sm:text-sm">Proof</strong><span class="text-[9px] uppercase tracking-wider text-white/45 sm:text-[10px]">Wins made public</span></div>
             </div>
           </div>
         </div>
@@ -108,7 +108,7 @@ onMounted(async () => {
     <section id="packages" class="package-stage relative isolate scroll-mt-16 border-y border-white/10 bg-[#090b09] text-[#f2f4ea]">
       <div class="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:px-8">
         <div class="flex items-end justify-between gap-5">
-          <div><p class="text-xs font-bold uppercase tracking-[.2em] text-[var(--app-accent)]">Active packages</p><h2 class="mt-3 text-4xl font-black tracking-[-.055em] sm:text-5xl">Buy a betslip.</h2></div>
+          <div><p class="text-xs font-bold uppercase tracking-[.2em] text-[var(--app-accent)]">Active packages</p><h2 class="mt-3 text-balance text-4xl font-black tracking-[-.055em] sm:text-5xl">Choose your earning package.</h2></div>
           <span class="hidden text-sm font-semibold text-white/40 sm:block">{{ packages.length }} available</span>
         </div>
 
@@ -121,7 +121,7 @@ onMounted(async () => {
           <article v-for="plan in packages" :key="plan.id" class="group flex min-h-[28rem] flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55">
             <div class="relative h-48 overflow-hidden bg-[#171d18]">
               <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
-              <div v-else class="grid h-full place-items-center text-[var(--app-accent)]/45"><PhSoccerBall :size="64" weight="duotone" /></div>
+              <div v-else class="grid h-full place-items-center text-[var(--app-accent)]/45"><PhMoneyWavy :size="64" weight="duotone" /></div>
               <span class="absolute left-4 top-4 bg-[#090b09]/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--app-accent)] backdrop-blur">{{ plan.package_type }}</span>
             </div>
             <div class="flex flex-1 flex-col p-6">
@@ -166,28 +166,29 @@ onMounted(async () => {
     radial-gradient(ellipse at 50% 108%, rgb(102 144 40 / 0.22), transparent 45%);
 }
 
-.hero-pitch {
+.hero-ledger {
   background:
-    linear-gradient(90deg, transparent 49.85%, rgb(242 244 234 / 0.13) 50%, transparent 50.15%),
-    linear-gradient(0deg, rgb(168 201 87 / 0.05), transparent 72%);
-  border-top: 1px solid rgb(168 201 87 / 0.09);
-  transform: perspective(520px) rotateX(63deg) scaleX(1.45);
+    linear-gradient(155deg, transparent 47.7%, rgb(168 201 87 / 0.22) 48%, transparent 48.3%),
+    repeating-linear-gradient(90deg, rgb(242 244 234 / 0.055) 0 1px, transparent 1px 5rem),
+    repeating-linear-gradient(0deg, rgb(242 244 234 / 0.045) 0 1px, transparent 1px 3rem),
+    linear-gradient(0deg, rgb(168 201 87 / 0.06), transparent 78%);
+  border-top: 1px solid rgb(168 201 87 / 0.08);
+  transform: perspective(650px) rotateX(58deg) scaleX(1.3);
   transform-origin: bottom center;
 }
 
-.hero-pitch::after {
+.hero-ledger::after {
   position: absolute;
-  left: 50%;
-  bottom: 6%;
-  width: min(38rem, 70vw);
-  aspect-ratio: 2 / 0.72;
+  right: 8%;
+  bottom: 12%;
+  width: min(34rem, 72vw);
+  height: 38%;
   content: '';
-  border: 1px solid rgb(242 244 234 / 0.13);
-  border-radius: 50%;
-  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgb(168 201 87 / 0.13));
+  clip-path: polygon(0 84%, 18% 70%, 36% 76%, 55% 44%, 74% 51%, 100% 5%, 100% 100%, 0 100%);
 }
 
-.hero-characters { animation: character-float 7s ease-in-out infinite; }
+.hero-income-art { animation: income-drift 9s ease-in-out infinite; }
 
 .package-stage::before {
   position: absolute;
@@ -199,12 +200,19 @@ onMounted(async () => {
   pointer-events: none;
 }
 
-@keyframes character-float {
+@keyframes income-drift {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1.01); }
-  50% { transform: translate3d(0, -8px, 0) scale(1.015); }
+  50% { transform: translate3d(0, -5px, 0) scale(1.015); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-characters { animation: none; }
+  .hero-income-art { animation: none; }
+}
+
+@media (max-width: 767px) {
+  .hero-income-art {
+    object-position: 18% center;
+    opacity: .32;
+  }
 }
 </style>
