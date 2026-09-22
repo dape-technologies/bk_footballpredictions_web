@@ -115,10 +115,10 @@ onMounted(async () => {
         <p v-if="notice" class="mt-7 rounded-2xl border border-[var(--app-accent)]/30 bg-[var(--app-accent)]/10 p-4 text-sm text-white">{{ notice }}</p>
         <p v-if="errors.subscription" class="mt-7 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ errors.subscription }}</p>
 
-        <div v-if="errors.packages" class="mt-9 rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-red-200">Packages are temporarily unavailable. {{ errors.packages }}</div>
-        <div v-if="loading" class="mt-9 grid gap-4 md:grid-cols-2 xl:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[28rem] animate-pulse bg-white/5"></div></div>
-        <div v-else-if="packages.length" class="mt-9 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <article v-for="plan in packages" :key="plan.id" class="group flex min-h-[28rem] flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55">
+        <div v-if="errors.packages" class="mt-9 break-words rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-red-200">Packages are temporarily unavailable. {{ errors.packages }}</div>
+        <div v-if="loading" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-white/5 md:w-auto"></div></div>
+        <div v-else-if="packages.length" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
+          <article v-for="plan in packages" :key="plan.id" class="group flex min-h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55 md:w-auto">
             <div class="relative h-48 overflow-hidden bg-[#171d18]">
               <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
               <div v-else class="grid h-full place-items-center text-[var(--app-accent)]/45"><PhMoneyWavy :size="64" weight="duotone" /></div>
@@ -141,10 +141,10 @@ onMounted(async () => {
     <section id="results" class="scroll-mt-16 border-y border-[var(--app-line)] bg-[var(--app-surface)]">
       <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div class="mb-9 flex items-end justify-between gap-5"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Results</p><h2 class="mt-3 text-4xl font-extrabold tracking-[-.05em] sm:text-5xl">Recent wins.</h2></div><span class="hidden text-sm font-semibold text-[var(--app-muted)] sm:block">{{ wins.length }} published</span></div>
-        <div v-if="errors.wins" class="border border-red-400/30 bg-red-500/10 p-5 text-red-200">Recent wins are unavailable. {{ errors.wins }}</div>
-        <div v-else-if="loading" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"><div v-for="n in 3" :key="n" class="h-80 animate-pulse bg-[var(--app-surface-2)]"></div></div>
-        <div v-else-if="wins.length" class="grid auto-rows-[20rem] gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <article v-for="(win,index) in wins" :key="win.id" :class="['group relative overflow-hidden bg-[#0b100d]', index===0 && wins.length>1 ? 'md:row-span-2 md:h-auto lg:col-span-2' : '']">
+        <div v-if="errors.wins" class="break-words border border-red-400/30 bg-red-500/10 p-5 text-red-200">Recent wins are unavailable. {{ errors.wins }}</div>
+        <div v-else-if="loading" class="mobile-card-rail flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-3"><div v-for="n in 3" :key="n" class="h-80 w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-[var(--app-surface-2)] md:w-auto"></div></div>
+        <div v-else-if="wins.length" class="mobile-card-rail flex gap-4 overflow-x-auto pb-3 md:grid md:auto-rows-[20rem] md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-3">
+          <article v-for="(win,index) in wins" :key="win.id" :class="['group relative h-80 w-[min(84vw,22rem)] shrink-0 snap-start overflow-hidden bg-[#0b100d] md:w-auto', index===0 && wins.length>1 ? 'md:row-span-2 md:h-auto lg:col-span-2' : '']">
             <img v-if="win.image_url" :src="win.image_url" :alt="win.caption" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025]">
             <div v-else class="grid h-full place-items-center text-[var(--app-accent)]"><PhTrophy :size="64" weight="duotone" /></div>
             <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-6 pt-20 text-white"><p class="max-w-2xl text-lg font-bold leading-6">{{ win.caption }}</p><time class="mt-2 block text-[10px] font-bold uppercase tracking-[.14em] text-white/45">{{ new Date(win.settled_at).toLocaleDateString('en-UG') }}</time></div>
@@ -199,6 +199,16 @@ onMounted(async () => {
   background: radial-gradient(circle at 50% 0, rgb(168 201 87 / 0.08), transparent 60%);
   pointer-events: none;
 }
+
+.mobile-card-rail {
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 1rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-card-rail::-webkit-scrollbar { display: none; }
 
 @keyframes income-drift {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1.01); }

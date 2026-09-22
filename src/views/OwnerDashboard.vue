@@ -6,6 +6,8 @@ import {
   PhCheck,
   PhCreditCard,
   PhHouse,
+  PhHourglassMedium,
+  PhMoneyWavy,
   PhPackage,
   PhPlus,
   PhSignOut,
@@ -44,6 +46,12 @@ const sections = [
 ]
 
 const activeMeta = computed(() => sections.find((item) => item.id === section.value))
+const overviewTiles = computed(() => [
+  { label: 'Members', value: metrics.value.customers, note: 'Registered users', icon: PhUsersThree },
+  { label: 'Active packages', value: metrics.value.active_packages, note: 'Visible for purchase', icon: PhPackage },
+  { label: 'Pending payments', value: metrics.value.pending_payments, note: 'Need confirmation', icon: PhHourglassMedium },
+  { label: 'Paid', value: metrics.value.paid_payments, note: 'Completed payments', icon: PhCreditCard },
+])
 const emptyPackage = () => ({
   name: '',
   package_type: '',
@@ -251,10 +259,10 @@ onMounted(loadAll)
 
         <template v-else-if="section === 'overview'">
           <section class="owner-kpis" aria-label="Business overview">
-            <article><span>Members</span><strong>{{ metrics.customers }}</strong><small>Registered users</small></article>
-            <article><span>Active packages</span><strong>{{ metrics.active_packages }}</strong><small>Visible for purchase</small></article>
-            <article class="attention"><span>Pending payments</span><strong>{{ metrics.pending_payments }}</strong><small>Need confirmation</small></article>
-            <article><span>Paid</span><strong>{{ metrics.paid_payments }}</strong><small>Completed payments</small></article>
+            <article v-for="tile in overviewTiles" :key="tile.label">
+              <div class="owner-kpi-heading"><span>{{ tile.label }}</span><i><component :is="tile.icon" :size="20" weight="duotone" /></i></div>
+              <strong>{{ tile.value ?? 0 }}</strong><small>{{ tile.note }}</small>
+            </article>
           </section>
 
           <div class="owner-grid">
@@ -271,7 +279,7 @@ onMounted(loadAll)
             </section>
 
             <section class="owner-panel revenue-panel">
-              <div class="panel-heading"><div><p>Revenue</p><h2>Confirmed payments</h2></div></div>
+              <div class="panel-heading"><div><p>Revenue</p><h2>Confirmed payments</h2></div><PhMoneyWavy :size="24" weight="duotone" /></div>
               <strong class="money-figure"><small>UGX</small>{{ money(metrics.revenue) }}</strong>
               <button type="button" class="owner-text-button" @click="section='payments'">View payments</button>
             </section>
@@ -386,14 +394,21 @@ onMounted(loadAll)
 
         <template v-else-if="section === 'members'">
           <section class="owner-panel">
-            <div class="panel-heading"><div><p>Audience</p><h2>Registered members</h2></div><span>{{ customers.length }} total</span></div>
+            <div class="panel-heading"><div><p>Audience</p><h2>Registered members</h2></div><span class="panel-count"><PhUsersThree :size="17" weight="duotone" />{{ customers.length }} total</span></div>
             <div v-if="!customers.length" class="empty-row">No registered members.</div>
-            <div v-else class="member-grid">
-              <article v-for="customer in customers" :key="customer.id">
-                <span>{{ customer.full_name.charAt(0) }}</span>
-                <div><h3>{{ customer.full_name }}</h3><p>{{ customer.phone }}</p><small>Joined {{ new Date(customer.created_at).toLocaleDateString('en-UG') }}</small></div>
-                <button type="button" :class="['table-action', customer.is_blocked ? 'approve' : 'reject']" @click="toggleBlock(customer)">{{ customer.is_blocked ? 'Restore' : 'Block' }}</button>
-              </article>
+            <div v-else class="table-wrap">
+              <table class="member-table">
+                <thead><tr><th>Member</th><th>Phone number</th><th>Joined</th><th>Account status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <tbody>
+                  <tr v-for="customer in customers" :key="customer.id">
+                    <td><div class="member-cell"><span>{{ customer.full_name.charAt(0) }}</span><strong>{{ customer.full_name }}</strong></div></td>
+                    <td>{{ customer.phone }}</td>
+                    <td>{{ new Date(customer.created_at).toLocaleDateString('en-UG', { day: '2-digit', month: 'short', year: 'numeric' }) }}</td>
+                    <td><span :class="['status-chip', customer.is_blocked ? 'cancelled' : 'active']">{{ customer.is_blocked ? 'Blocked' : 'Active' }}</span></td>
+                    <td><button type="button" :class="['table-action', customer.is_blocked ? 'approve' : 'reject']" @click="toggleBlock(customer)">{{ customer.is_blocked ? 'Restore' : 'Block' }}</button></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </section>
         </template>
@@ -403,8 +418,8 @@ onMounted(loadAll)
     <div v-if="confirmation" class="confirm-layer" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="confirm-box">
         <button type="button" class="icon-button" aria-label="Close confirmation" @click="confirmation=null"><PhX :size="18" /></button>
-        <p>Confirm removal</p><h2 id="confirm-title">Remove {{ confirmation.label }}?</h2><span>This action cannot be undone.</span>
-        <div><button type="button" class="owner-secondary-button" @click="confirmation=null">Keep it</button><button type="button" class="owner-danger-button" @click="confirmDelete">Remove permanently</button></div>
+        <p>Confirm removal</p><h2 id="confirm-title">Remove {{ confirmation.label }}?</h2><span>It will disappear from the dashboard. Required account and payment history stays protected.</span>
+        <div><button type="button" class="owner-secondary-button" @click="confirmation=null">Keep it</button><button type="button" class="owner-danger-button" @click="confirmDelete">Remove</button></div>
       </div>
     </div>
   </div>
