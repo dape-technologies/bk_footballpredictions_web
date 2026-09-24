@@ -38,3 +38,9 @@ npm run generate:pwa-assets
 `generate:pwa-assets` rebuilds the PWA icons from `public/favicon.svg`. Production builds generate `manifest.webmanifest`, `sw.js`, and the Workbox runtime. API, media, owner, authentication, subscription, and premium prediction responses are not runtime-cached.
 
 The MVP scope and post-execution checklist live in [MVP_EXECUTION_PLAN.md](./MVP_EXECUTION_PLAN.md).
+
+## Production
+
+The repositories include a same-origin Namecheap cPanel/Passenger deployment
+setup for the Vue PWA, Django API, uploaded media, and MariaDB. See
+[DEPLOYMENT.md](./DEPLOYMENT.md) for configuration and launch steps.

@@ -130,7 +130,7 @@ catalog/
 
 Use Django REST Framework and same-origin, secure cookie sessions for the browser MVP. Use Django CSRF protection for state-changing requests. This avoids storing bearer tokens in browser local storage. The Vite development proxy keeps the local browser flow same-origin.
 
-SQLite is acceptable for the first local execution. Use PostgreSQL before staging or production.
+SQLite is acceptable for the first local execution. Use MariaDB before staging or production.
 
 ### Core data model
 
@@ -349,7 +349,7 @@ Exit condition: all MVP acceptance scenarios pass from a clean checkout using do
 
 ### Staging readiness
 
-- [ ] Move staging from SQLite to PostgreSQL.
+- [ ] Move staging from SQLite to MariaDB.
 - [ ] Separate development, test, staging, and production settings.
 - [ ] Configure allowed hosts, trusted origins, HTTPS, static files, media storage, structured logging, and error reporting.
 - [ ] Establish database and media backup retention.
