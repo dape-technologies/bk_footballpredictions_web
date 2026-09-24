@@ -3,7 +3,6 @@ import { inject, onMounted, ref } from 'vue'
 import { PhArrowRight, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import HeroWordmark from '../components/HeroWordmark.vue'
-import { useAuthStore } from '../stores/auth'
 
 const predictions = ref([])
 const packages = ref([])
@@ -11,10 +10,8 @@ const wins = ref([])
 const testimonials = ref([])
 const loading = ref(true)
 const errors = ref({})
-const notice = ref('')
-const submitting = ref(null)
-const auth = useAuthStore()
 const openDialog = inject('openAppDialog')
+const startCheckout = inject('startPackageCheckout')
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -24,20 +21,7 @@ function scrollTo(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-async function requestAccess(plan) {
-  if (!auth.isAuthenticated) {
-    openDialog?.('login')
-    return
-  }
-  submitting.value = plan.id
-  notice.value = ''
-  errors.value.subscription = ''
-  try {
-    await api('/v1/me/subscriptions/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
-    notice.value = `${plan.name} purchase request sent.`
-  } catch (error) { errors.value.subscription = error.message }
-  finally { submitting.value = null }
-}
+function requestAccess(plan) { startCheckout?.(plan) }
 
 onMounted(async () => {
   const resources = [
@@ -109,11 +93,8 @@ onMounted(async () => {
       <div class="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:px-8">
         <div class="flex items-end justify-between gap-5">
           <div><p class="text-xs font-bold uppercase tracking-[.2em] text-[var(--app-accent)]">Active packages</p><h2 class="mt-3 text-balance text-4xl font-black tracking-[-.055em] sm:text-5xl">Choose your earning package.</h2></div>
-          <span class="hidden text-sm font-semibold text-white/40 sm:block">{{ packages.length }} available</span>
+          <span class="hidden text-sm font-semibold text-white/40 sm:block">{{ packages.filter((plan) => plan.is_open).length }} open</span>
         </div>
-
-        <p v-if="notice" class="mt-7 rounded-2xl border border-[var(--app-accent)]/30 bg-[var(--app-accent)]/10 p-4 text-sm text-white">{{ notice }}</p>
-        <p v-if="errors.subscription" class="mt-7 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ errors.subscription }}</p>
 
         <div v-if="errors.packages" class="mt-9 break-words rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-red-200">Packages are temporarily unavailable. {{ errors.packages }}</div>
         <div v-if="loading" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-white/5 md:w-auto"></div></div>
@@ -123,14 +104,15 @@ onMounted(async () => {
               <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
               <div v-else class="grid h-full place-items-center text-[var(--app-accent)]/45"><PhMoneyWavy :size="64" weight="duotone" /></div>
               <span class="absolute left-4 top-4 bg-[#090b09]/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--app-accent)] backdrop-blur">{{ plan.package_type }}</span>
+              <span v-if="!plan.is_open" class="absolute right-4 top-4 bg-red-950/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-red-200 backdrop-blur">Closed</span>
             </div>
             <div class="flex flex-1 flex-col p-6">
               <div class="flex items-start justify-between gap-4"><h3 class="text-2xl font-extrabold tracking-[-.04em]">{{ plan.name }}</h3><strong class="text-xl font-black numbers"><small class="mr-1 text-[9px] text-white/35">{{ plan.currency }}</small>{{ money(plan.price) }}</strong></div>
               <dl class="mt-6 grid grid-cols-2 border-y border-white/10 py-4">
                 <div><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">Win probability</dt><dd class="mt-1 text-xl font-black text-[var(--app-accent)] numbers">{{ plan.win_probability }}%</dd></div>
-                <div class="border-l border-white/10 pl-4"><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">Commences</dt><dd class="mt-1 flex items-center gap-1.5 text-sm font-bold"><PhClock :size="15" />{{ formatStart(plan.commences_at) }}</dd></div>
+                <div class="border-l border-white/10 pl-4"><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">{{ plan.is_open ? 'Closes' : 'Closed' }}</dt><dd class="mt-1 flex items-center gap-1.5 text-sm font-bold"><PhClock :size="15" />{{ formatStart(plan.closes_at) }}</dd></div>
               </dl>
-              <button type="button" :disabled="submitting === plan.id || !plan.is_open" class="mt-auto flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] transition hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-45" @click="requestAccess(plan)">{{ submitting === plan.id ? 'Processing…' : plan.is_open ? 'Buy slip' : 'Unavailable' }} <PhArrowRight :size="17" /></button>
+              <button type="button" :disabled="!plan.is_open" class="mt-auto flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] transition hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/35" @click="requestAccess(plan)">{{ plan.is_open ? 'Buy package' : 'Closed' }} <PhArrowRight v-if="plan.is_open" :size="17" /></button>
             </div>
           </article>
         </div>
