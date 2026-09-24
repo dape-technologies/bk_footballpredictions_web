@@ -112,8 +112,9 @@ permanently HTTPS.
 
 ## Automatic GitHub deployments
 
-Both repositories contain a GitHub Actions workflow. Pushes to `marcdemo`
-deploy automatically:
+Both repositories contain a GitHub Actions workflow. Pull requests from
+`marcdemo` into `main` run their checks without receiving production secrets.
+Merging into `main` deploys automatically:
 
 - The API workflow installs dependencies, runs all Django tests, uploads a
   staged release, runs the production check and migrations, publishes the code,
@@ -178,10 +179,12 @@ should wait for manual approval.
 
 ### 3. First automated release
 
-Commit and push the cPanel deployment changes to the API repository first. Once
-its workflow succeeds, commit and push the web repository. Later pushes to each
-repository deploy only that component. A failed build or test never reaches the
-server, and a failed staged validation does not publish the API code.
+Commit and push the cPanel deployment changes to `marcdemo`, then open pull
+requests into `main`. The pull-request workflows validate both projects. Merge
+the API pull request first; after its deployment succeeds, merge the web pull
+request. Later merges deploy only the changed component. A failed build or test
+never reaches the server, and a failed staged validation does not publish the
+API code.
 
 Each workflow can also be started manually from **GitHub > Actions**. Back up
 PostgreSQL and the `media` directory independently; deployments do not constitute
