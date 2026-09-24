@@ -6,11 +6,10 @@ site uses Django session and CSRF cookies.
 
 ## Database compatibility
 
-This project uses Django 5.2, which requires PostgreSQL 14 or newer. Namecheap's
-shared-server documentation currently lists PostgreSQL 10.23. Before deploying,
-check the PostgreSQL version available on your specific server. If it is older
-than 14, use a reachable external PostgreSQL 14+ service or switch the project to
-Namecheap's supported MariaDB. Do not downgrade Django to an unsupported release.
+Production uses Namecheap's MariaDB 11.4 service through Django's MySQL backend.
+MariaDB 11.4 is supported by Django 5.2. The database must use InnoDB so
+transactions and foreign keys are enforced; Namecheap's default MariaDB setup
+uses InnoDB.
 
 ## 1. Prepare the upload locally
 
@@ -27,14 +26,12 @@ This creates the production frontend in
 `/home/CPANEL_USER/bk_app`. Do not place source code or secrets in `public_html`.
 Exclude `.git`, `.venv`, `.env`, `db.sqlite3`, `__pycache__`, and `staticfiles`.
 
-## 2. Create PostgreSQL
+## 2. Create MariaDB
 
-In cPanel, open **PostgreSQL Databases** and create a database and user, then add
-the user to the database with all privileges. cPanel prefixes both names with
-your account username; use the full displayed names in the environment settings.
-
-For an external PostgreSQL 14+ server, allow connections from the hosting server
-and use that provider's hostname instead of `localhost`.
+In cPanel, open **MySQL Databases** (the server behind this interface is
+MariaDB), create a database and user, then add the user to the database with all
+privileges. cPanel prefixes both names with your account username; use the full
+displayed names in the environment settings.
 
 ## 3. Create the Python application
 
@@ -63,7 +60,7 @@ DB_NAME=cpaneluser_bk_predictions
 DB_USER=cpaneluser_bk_user
 DB_PASSWORD=<database-password>
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=3306
 DJANGO_SECURE_COOKIES=True
 DJANGO_SECURE_SSL_REDIRECT=True
 DJANGO_SERVE_MEDIA=True
@@ -187,5 +184,5 @@ never reaches the server, and a failed staged validation does not publish the
 API code.
 
 Each workflow can also be started manually from **GitHub > Actions**. Back up
-PostgreSQL and the `media` directory independently; deployments do not constitute
+MariaDB and the `media` directory independently; deployments do not constitute
 a data backup.

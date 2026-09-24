@@ -42,5 +42,5 @@ The MVP scope and post-execution checklist live in [MVP_EXECUTION_PLAN.md](./MVP
 ## Production
 
 The repositories include a same-origin Namecheap cPanel/Passenger deployment
-setup for the Vue PWA, Django API, uploaded media, and PostgreSQL. See
+setup for the Vue PWA, Django API, uploaded media, and MariaDB. See
 [DEPLOYMENT.md](./DEPLOYMENT.md) for configuration and launch steps.
