@@ -48,8 +48,8 @@ const sections = [
 const activeMeta = computed(() => sections.find((item) => item.id === section.value))
 const overviewTiles = computed(() => [
   { label: 'Members', value: metrics.value.customers, note: 'Registered users', icon: PhUsersThree },
-  { label: 'Active packages', value: metrics.value.active_packages, note: 'Visible for purchase', icon: PhPackage },
-  { label: 'Pending payments', value: metrics.value.pending_payments, note: 'Need confirmation', icon: PhHourglassMedium },
+  { label: 'Open packages', value: metrics.value.active_packages, note: 'Available for purchase', icon: PhPackage },
+  { label: 'Pending payments', value: metrics.value.pending_payments, note: 'Awaiting Relworx', icon: PhHourglassMedium },
   { label: 'Paid', value: metrics.value.paid_payments, note: 'Completed payments', icon: PhCreditCard },
 ])
 const emptyPackage = () => ({
@@ -58,10 +58,9 @@ const emptyPackage = () => ({
   price: '',
   currency: 'UGX',
   win_probability: 70,
-  commences_at: '',
+  closes_at: '',
   betslip_link: '',
   code: '',
-  is_active: true,
 })
 const packageForm = reactive(emptyPackage())
 const winForm = reactive({ caption: '' })
@@ -106,7 +105,7 @@ async function createPackage() {
   try {
     const data = new FormData()
     Object.entries(packageForm).forEach(([key, value]) => {
-      data.append(key, key === 'commences_at' ? new Date(value).toISOString() : value)
+      data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
     })
     data.append('slug', slugify(packageForm.name))
     data.append('image', packageFile.value)
@@ -119,19 +118,6 @@ async function createPackage() {
     error.value = caught.message
   } finally {
     saving.value = false
-  }
-}
-
-async function togglePackage(plan, field) {
-  try {
-    await api(`/v1/owner/packages/${plan.id}/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ [field]: !plan[field] }),
-    })
-    flash('Package updated.')
-    await loadAll()
-  } catch (caught) {
-    error.value = caught.message
   }
 }
 
@@ -152,23 +138,6 @@ async function createRecentWin() {
     winForm.caption = ''
     winFile.value = null
     flash('Recent win published.')
-    await loadAll()
-  } catch (caught) {
-    error.value = caught.message
-  } finally {
-    saving.value = false
-  }
-}
-
-async function resolvePayment(payment, decision) {
-  saving.value = true
-  error.value = ''
-  try {
-    await api(`/v1/owner/payments/${payment.id}/resolve/`, {
-      method: 'POST',
-      body: JSON.stringify({ decision }),
-    })
-    flash(decision === 'confirm' ? 'Payment confirmed.' : decision === 'refund' ? 'Payment refunded.' : 'Payment marked failed.')
     await loadAll()
   } catch (caught) {
     error.value = caught.message
@@ -273,7 +242,7 @@ onMounted(loadAll)
                 <div v-for="plan in metrics.package_demand" :key="plan.id">
                   <strong>{{ plan.name }}</strong>
                   <span><i :style="{ width: `${Math.min(100, plan.request_count * 12)}%` }"></i></span>
-                  <b>{{ plan.request_count }} requests / {{ plan.active_count }} active</b>
+                  <b>{{ plan.request_count }} started / {{ plan.paid_count }} paid</b>
                 </div>
               </div>
             </section>
@@ -301,7 +270,7 @@ onMounted(loadAll)
                     <label><span>Win probability (%)</span><input v-model="packageForm.win_probability" required min="0" max="100" type="number"></label>
                   </div>
                   <div class="field-pair">
-                    <label><span>Commences at</span><input v-model="packageForm.commences_at" required type="datetime-local"></label>
+                    <label><span>Purchasing closes at</span><input v-model="packageForm.closes_at" required type="datetime-local"></label>
                     <label><span>Code</span><input v-model.trim="packageForm.code" required placeholder="BK-WKD-82"></label>
                   </div>
                   <label><span>Betslip link</span><input v-model.trim="packageForm.betslip_link" required type="url" placeholder="https://..."></label>
@@ -317,7 +286,7 @@ onMounted(loadAll)
               </div>
 
               <div class="package-form-footer">
-                <label class="admin-toggle"><input v-model="packageForm.is_active" type="checkbox"><span></span><b>Active and visible</b></label>
+                <span>Packages remain visible after closing until you delete them.</span>
                 <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : 'Save package' }}</button>
               </div>
             </form>
@@ -328,12 +297,12 @@ onMounted(loadAll)
             <div v-if="!packages.length" class="empty-row">No packages have been added.</div>
             <div v-else class="table-wrap">
               <table class="package-admin-table">
-                <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Commences</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="plan in packages" :key="plan.id">
                     <td><div class="package-table-photo" :style="plan.image_url ? { backgroundImage: `url(${plan.image_url})` } : {}"><PhPackage v-if="!plan.image_url" :size="18" /></div></td>
-                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.commences_at) }}</td>
-                    <td><label class="admin-toggle compact" :title="plan.is_active ? 'Deactivate package' : 'Activate package'"><input :checked="plan.is_active" type="checkbox" @change="togglePackage(plan, 'is_active')"><span></span><b>{{ plan.is_active ? 'ON' : 'OFF' }}</b></label></td>
+                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
+                    <td><span :class="['status-chip', plan.is_open ? 'active' : 'expired']">{{ plan.is_open ? 'Open' : 'Closed' }}</span></td>
                     <td><a :href="plan.betslip_link" target="_blank" rel="noopener">Open link</a></td><td><code>{{ plan.code }}</code></td>
                     <td><button type="button" class="icon-button danger" title="Delete package" @click="requestDelete(plan.name, `/v1/owner/packages/${plan.id}/`)"><PhTrash :size="17" /></button></td>
                   </tr>
@@ -380,11 +349,10 @@ onMounted(loadAll)
             <div v-if="!payments.length" class="empty-row">No payments recorded.</div>
             <div v-else class="table-wrap">
               <table class="payment-table">
-                <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+                <thead><tr><th>Reference</th><th>Relworx reference</th><th>User</th><th>Payment phone</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead>
                 <tbody>
                   <tr v-for="payment in payments" :key="payment.id">
-                    <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.package.name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
-                    <td><div v-if="payment.status === 'pending'" class="decision-actions"><button type="button" class="table-action approve" :disabled="saving" @click="resolvePayment(payment, 'confirm')">Confirm paid</button><button type="button" class="table-action reject" :disabled="saving" @click="resolvePayment(payment, 'fail')">Mark failed</button></div><button v-else-if="payment.status === 'paid'" type="button" class="table-action reject" :disabled="saving" @click="resolvePayment(payment, 'refund')">Refund</button><span v-else>—</span></td>
+                    <td><code>{{ payment.reference }}</code></td><td><code>{{ payment.internal_reference || '—' }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.payer_msisdn }}</td><td>{{ payment.package.name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
                   </tr>
                 </tbody>
               </table>

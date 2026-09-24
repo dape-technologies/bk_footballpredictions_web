@@ -17,10 +17,11 @@ const canInstall = ref(false)
 const dialog = ref(null)
 const profileOpen = ref(false)
 const profileMenu = ref(null)
-const subscriptions = ref([])
+const purchases = ref([])
 const profileLoading = ref(false)
 const profileError = ref('')
-const activeSubscriptions = computed(() => subscriptions.value.filter((subscription) => subscription.status === 'active' && subscription.grants_access))
+const paidPurchases = computed(() => purchases.value.filter((purchase) => purchase.is_paid))
+const checkoutPackage = ref(JSON.parse(sessionStorage.getItem('bk-checkout-package') || 'null'))
 
 const navigation = computed(() => [
   { id: 'top', label: 'Home', icon: PhHouse },
@@ -30,6 +31,25 @@ const navigation = computed(() => [
 
 function openDialog(mode) {
   dialog.value = mode
+}
+
+function startPackageCheckout(plan) {
+  checkoutPackage.value = plan
+  sessionStorage.setItem('bk-checkout-package', JSON.stringify(plan))
+  openDialog(auth.isAuthenticated ? 'checkout' : 'login')
+}
+
+function handleAuthenticated(user) {
+  if (user?.is_owner) {
+    closeDialog()
+    router.push('/admin')
+    return
+  }
+  openDialog(checkoutPackage.value ? 'checkout' : 'account')
+}
+
+function finishCheckout() {
+  sessionStorage.removeItem('bk-checkout-package')
 }
 
 function closeDialog() {
@@ -42,7 +62,7 @@ async function toggleProfile() {
   if (!profileOpen.value) return
   profileLoading.value = true
   profileError.value = ''
-  try { subscriptions.value = await api('/v1/me/subscriptions/') }
+  try { purchases.value = await api('/v1/me/purchases/') }
   catch (error) { profileError.value = error.message }
   finally { profileLoading.value = false }
 }
@@ -83,6 +103,7 @@ async function installApp() {
 }
 
 provide('openAppDialog', openDialog)
+provide('startPackageCheckout', startPackageCheckout)
 
 watch(() => route.meta.dialog, (mode) => {
   if (mode) dialog.value = mode
@@ -135,15 +156,15 @@ onBeforeUnmount(() => {
                 <div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Signed in as</p><strong class="block truncate text-lg">{{ auth.user?.first_name }} {{ auth.user?.surname }}</strong></div>
               </header>
               <div class="p-4">
-                <div class="flex items-center justify-between"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Active subscription</p><PhCrown :size="18" class="text-[var(--app-accent)]" weight="duotone" /></div>
-                <p v-if="profileLoading" class="mt-3 animate-pulse text-sm text-white/45">Checking your access…</p>
+                <div class="flex items-center justify-between"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">My purchases</p><PhCrown :size="18" class="text-[var(--app-accent)]" weight="duotone" /></div>
+                <p v-if="profileLoading" class="mt-3 animate-pulse text-sm text-white/45">Checking your purchases…</p>
                 <p v-else-if="profileError" class="mt-3 text-sm text-red-300">{{ profileError }}</p>
-                <div v-else-if="activeSubscriptions.length" class="mt-3 grid gap-2">
-                  <button v-for="subscription in activeSubscriptions" :key="subscription.id" type="button" class="flex w-full items-center justify-between rounded-xl bg-white/5 p-3 text-left hover:bg-white/8" @click="profileOpen=false; openDialog('account')">
-                    <span><strong class="block text-sm">{{ subscription.package.name }}</strong><small class="mt-1 block text-[11px] text-white/40">Until {{ new Date(subscription.expires_at).toLocaleDateString('en-UG') }}</small></span><span class="size-2 rounded-full bg-[var(--app-accent)]"></span>
+                <div v-else-if="paidPurchases.length" class="mt-3 grid gap-2">
+                  <button v-for="purchase in paidPurchases" :key="purchase.id" type="button" class="flex w-full items-center justify-between rounded-xl bg-white/5 p-3 text-left hover:bg-white/8" @click="profileOpen=false; openDialog('account')">
+                    <span><strong class="block text-sm">{{ purchase.package.name }}</strong><small class="mt-1 block text-[11px] text-white/40">Purchased {{ new Date(purchase.paid_at).toLocaleDateString('en-UG') }}</small></span><span class="size-2 rounded-full bg-[var(--app-accent)]"></span>
                   </button>
                 </div>
-                <button v-else type="button" class="mt-3 w-full rounded-xl border border-dashed border-white/15 p-3 text-left text-sm text-white/45 hover:border-white/25 hover:text-white/70" @click="profileOpen=false; scrollToSection('packages')">No active subscription. View VIP access.</button>
+                <button v-else type="button" class="mt-3 w-full rounded-xl border border-dashed border-white/15 p-3 text-left text-sm text-white/45 hover:border-white/25 hover:text-white/70" @click="profileOpen=false; scrollToSection('packages')">No paid packages yet. View packages.</button>
               </div>
               <button type="button" class="flex w-full items-center gap-2 border-t border-white/10 px-4 py-3.5 text-sm font-bold text-white/55 hover:bg-white/5 hover:text-white" role="menuitem" @click="signOut"><PhSignOut :size="18" /> Sign out</button>
             </section>
@@ -181,6 +202,6 @@ onBeforeUnmount(() => {
       </div>
     </footer>
 
-    <AppDialog v-if="dialog" :mode="dialog" @close="closeDialog" @switch="openDialog" />
+    <AppDialog v-if="dialog" :mode="dialog" :package="checkoutPackage" @close="closeDialog" @switch="openDialog" @authenticated="handleAuthenticated" @purchase-complete="finishCheckout" />
   </div>
 </template>
