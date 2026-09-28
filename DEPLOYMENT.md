@@ -171,6 +171,24 @@ Add this additional variable to the API repository:
 | `CPANEL_VENV_ROOT` | `/home/cpaneluser/virtualenv/bk_app/3.12` |
 
 Use the exact virtual-environment path shown in cPanel's activation command.
+Add these secrets to the API repository's `production` environment:
+
+| Secret | Value |
+| --- | --- |
+| `RELWORX_API_KEY` | Relworx production API key |
+| `RELWORX_ACCOUNT_NO` | Relworx production account number |
+| `RELWORX_WEBHOOK_SIGNING_KEY` | Relworx production webhook signing key |
+
+The API deployment derives `RELWORX_WEBHOOK_URL` from `PRODUCTION_URL` and
+atomically syncs only these Relworx settings into the server's protected
+`.env`. The database and Django keys remain server-managed. Optionally set
+`RELWORX_API_BASE_URL` as an API repository environment variable; it defaults
+to `https://payments.relworx.com`.
+
+Remove these `RELWORX_*` names from cPanel's **Setup Python App** environment
+variables when GitHub manages them. Process-level cPanel values override values
+loaded from the synchronized `.env`.
+
 Optionally add required reviewers to the `production` environment if deployments
 should wait for manual approval.
 
