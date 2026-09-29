@@ -179,12 +179,18 @@ Add these secrets to the API repository's `production` environment:
 | `RELWORX_API_KEY` | Relworx production API key |
 | `RELWORX_ACCOUNT_NO` | Relworx production account number |
 | `RELWORX_WEBHOOK_SIGNING_KEY` | Relworx production webhook signing key |
+| `ADMIN_SEED_PASSWORD` | Strong production password for the seeded administrator |
 
 The API deployment derives `RELWORX_WEBHOOK_URL` from `PRODUCTION_URL` and
 atomically syncs only these Relworx settings into the server's protected
 `.env`. The database and Django keys remain server-managed. Optionally set
 `RELWORX_API_BASE_URL` as an API repository environment variable; it defaults
 to `https://payments.relworx.com`.
+
+Set `ADMIN_LOGIN_USERNAME` (default `admin`) and `ADMIN_SEED_PHONE` (default
+`0700000000`) as API repository environment variables. Each API deployment
+creates or refreshes this superuser after migrations without printing its
+password.
 
 Remove these `RELWORX_*` names from cPanel's **Setup Python App** environment
 variables when GitHub manages them. Process-level cPanel values override values
