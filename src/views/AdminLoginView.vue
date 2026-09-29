@@ -50,11 +50,11 @@ async function submit() {
           <span class="grid size-12 place-items-center rounded-2xl bg-[#c7ff45] text-[#07110d]"><PhLockKey :size="25" weight="duotone" /></span>
           <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[#c7ff45]">Administrator sign in</p>
           <h2 class="mt-3 text-4xl font-black tracking-[-.055em] sm:text-5xl">Welcome back.</h2>
-          <p class="mt-4 leading-7 text-white/45">Use the private phone number and password assigned to your administrator account.</p>
+          <p class="mt-4 leading-7 text-white/45">Use the private username or phone number and password assigned to your administrator account.</p>
 
           <form class="mt-9 grid gap-5" @submit.prevent="submit">
-            <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Admin phone number
-              <input v-model.trim="form.phone" required autocomplete="username" inputmode="tel" placeholder="07XXXXXXXX" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-base font-medium normal-case tracking-normal text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
+            <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Admin username or phone
+              <input v-model.trim="form.phone" required autocomplete="username" placeholder="admin" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-base font-medium normal-case tracking-normal text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
             </label>
             <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Password
               <input v-model="form.password" required minlength="4" type="password" autocomplete="current-password" placeholder="Enter your password" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-base font-medium normal-case tracking-normal text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
