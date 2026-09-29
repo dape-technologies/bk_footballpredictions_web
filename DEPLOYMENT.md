@@ -100,7 +100,8 @@ After Namecheap SSL is active, check:
 
 - `https://yourdomain.example/`
 - `https://yourdomain.example/api/health/`
-- `https://yourdomain.example/admin/`
+- `https://yourdomain.example/django-admin/` for Django's built-in administration
+- `https://yourdomain.example/admin` for the product-owner dashboard
 - registration, login, logout, and an image upload
 
 Keep `DJANGO_SECURE_HSTS_SECONDS=0` until HTTPS and redirects work correctly.
