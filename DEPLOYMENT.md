@@ -122,7 +122,8 @@ After Namecheap SSL is active, check:
 
 - `https://yourdomain.example/`
 - `https://yourdomain.example/api/health/`
-- `https://yourdomain.example/admin/`
+- `https://yourdomain.example/django-admin/` for Django's built-in administration
+- `https://yourdomain.example/admin` for the product-owner dashboard
 - registration, login, logout, and an image upload
 
 Keep `DJANGO_SECURE_HSTS_SECONDS=0` until HTTPS and redirects work correctly.
@@ -193,6 +194,30 @@ Add this additional variable to the API repository:
 | `CPANEL_VENV_ROOT` | `/home/cpaneluser/virtualenv/bk_app/3.12` |
 
 Use the exact virtual-environment path shown in cPanel's activation command.
+Add these secrets to the API repository's `production` environment:
+
+| Secret | Value |
+| --- | --- |
+| `RELWORX_API_KEY` | Relworx production API key |
+| `RELWORX_ACCOUNT_NO` | Relworx production account number |
+| `RELWORX_WEBHOOK_SIGNING_KEY` | Relworx production webhook signing key |
+| `ADMIN_SEED_PASSWORD` | Strong production password for the seeded administrator |
+
+The API deployment derives `RELWORX_WEBHOOK_URL` from `PRODUCTION_URL` and
+atomically syncs only these Relworx settings into the server's protected
+`.env`. The database and Django keys remain server-managed. Optionally set
+`RELWORX_API_BASE_URL` as an API repository environment variable; it defaults
+to `https://payments.relworx.com`.
+
+Set `ADMIN_LOGIN_USERNAME` (default `admin`) and `ADMIN_SEED_PHONE` (default
+`0700000000`) as API repository environment variables. Each API deployment
+creates or refreshes this superuser after migrations without printing its
+password.
+
+Remove these `RELWORX_*` names from cPanel's **Setup Python App** environment
+variables when GitHub manages them. Process-level cPanel values override values
+loaded from the synchronized `.env`.
+
 Optionally add required reviewers to the `production` environment if deployments
 should wait for manual approval.
 
