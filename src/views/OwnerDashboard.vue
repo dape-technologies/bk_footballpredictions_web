@@ -58,7 +58,7 @@ const emptyPackage = () => ({
   price: '',
   currency: 'UGX',
   win_probability: 70,
-  commences_at: '',
+  closes_at: '',
   betslip_link: '',
   code: '',
   is_active: true,
@@ -106,7 +106,7 @@ async function createPackage() {
   try {
     const data = new FormData()
     Object.entries(packageForm).forEach(([key, value]) => {
-      data.append(key, key === 'commences_at' ? new Date(value).toISOString() : value)
+      data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
     })
     data.append('slug', slugify(packageForm.name))
     data.append('image', packageFile.value)
@@ -284,7 +284,7 @@ onMounted(loadAll)
                     <label><span>Win probability (%)</span><input v-model="packageForm.win_probability" required min="0" max="100" type="number"></label>
                   </div>
                   <div class="field-pair">
-                    <label><span>Commences at</span><input v-model="packageForm.commences_at" required type="datetime-local"></label>
+                    <label><span>Closes at</span><input v-model="packageForm.closes_at" required type="datetime-local"></label>
                     <label><span>Code</span><input v-model.trim="packageForm.code" required placeholder="BK-WKD-82"></label>
                   </div>
                   <label><span>Betslip link</span><input v-model.trim="packageForm.betslip_link" required type="url" placeholder="https://..."></label>
@@ -311,11 +311,11 @@ onMounted(loadAll)
             <div v-if="!packages.length" class="empty-row">No packages have been added.</div>
             <div v-else class="table-wrap">
               <table class="package-admin-table">
-                <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Commences</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="plan in packages" :key="plan.id">
                     <td><div class="package-table-photo" :style="plan.image_url ? { backgroundImage: `url(${plan.image_url})` } : {}"><PhPackage v-if="!plan.image_url" :size="18" /></div></td>
-                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.commences_at) }}</td>
+                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
                     <td><label class="admin-toggle compact" :title="plan.is_active ? 'Deactivate package' : 'Activate package'"><input :checked="plan.is_active" type="checkbox" @change="togglePackage(plan, 'is_active')"><span></span><b>{{ plan.is_active ? 'ON' : 'OFF' }}</b></label></td>
                     <td><a :href="plan.betslip_link" target="_blank" rel="noopener">Open link</a></td><td><code>{{ plan.code }}</code></td>
                     <td><button type="button" class="icon-button danger" title="Delete package" @click="requestDelete(plan.name, `/v1/owner/packages/${plan.id}/`)"><PhTrash :size="17" /></button></td>

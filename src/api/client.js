@@ -17,9 +17,14 @@ function errorMessage(payload, fallback) {
   if (!payload) return fallback
   if (typeof payload.detail === 'string') return payload.detail
   if (Array.isArray(payload.non_field_errors)) return payload.non_field_errors[0]
-  for (const value of Object.values(payload)) {
-    if (Array.isArray(value) && value[0]) return value[0]
-    if (typeof value === 'string') return value
+  if (typeof payload === 'object' && !Array.isArray(payload)) {
+    const fieldErrors = Object.entries(payload).flatMap(([field, value]) => {
+      if (field === 'non_field_errors') return []
+      const label = field.replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase())
+      const messages = Array.isArray(value) ? value : [value]
+      return messages.filter(Boolean).map((message) => `${label}: ${message}`)
+    })
+    if (fieldErrors.length) return fieldErrors.join(' ')
   }
   return fallback
 }

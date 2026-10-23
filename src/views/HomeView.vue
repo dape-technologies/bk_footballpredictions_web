@@ -132,7 +132,7 @@ onMounted(async () => {
               <div class="flex items-start justify-between gap-4"><h3 class="text-2xl font-extrabold tracking-[-.04em]">{{ plan.name }}</h3><strong class="text-xl font-black numbers"><small class="mr-1 text-[9px] text-white/35">{{ plan.currency }}</small>{{ money(plan.price) }}</strong></div>
               <dl class="mt-6 grid grid-cols-2 border-y border-white/10 py-4">
                 <div><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">Win probability</dt><dd class="mt-1 text-xl font-black text-[var(--app-accent)] numbers">{{ plan.win_probability }}%</dd></div>
-                <div class="border-l border-white/10 pl-4"><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">Commences</dt><dd class="mt-1 flex items-center gap-1.5 text-sm font-bold"><PhClock :size="15" />{{ formatStart(plan.commences_at) }}</dd></div>
+                <div class="border-l border-white/10 pl-4"><dt class="text-[9px] font-bold uppercase tracking-[.14em] text-white/35">Closes</dt><dd class="mt-1 flex items-center gap-1.5 text-sm font-bold"><PhClock :size="15" />{{ formatStart(plan.closes_at) }}</dd></div>
               </dl>
               <button type="button" :disabled="submitting === plan.id || !plan.is_open" class="mt-auto flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] transition hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-45" @click="requestAccess(plan)">{{ submitting === plan.id ? 'Processing…' : plan.is_open ? 'Buy slip' : 'Unavailable' }} <PhArrowRight :size="17" /></button>
             </div>
