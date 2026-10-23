@@ -65,7 +65,19 @@ DJANGO_SECURE_COOKIES=True
 DJANGO_SECURE_SSL_REDIRECT=True
 DJANGO_SERVE_MEDIA=True
 DJANGO_SECURE_HSTS_SECONDS=0
+RELWORX_API_KEY=<relworx-api-key>
+RELWORX_ACCOUNT_NO=<relworx-business-account-number>
+RELWORX_WEBHOOK_SIGNING_KEY=<relworx-business-webhook-key>
+RELWORX_API_BASE_URL=https://payments.relworx.com
+RELWORX_WEBHOOK_URL=https://yourdomain.example/api/v1/payments/relworx/webhook/
+RELWORX_WEBHOOK_TOLERANCE_SECONDS=300
+RELWORX_REQUEST_TIMEOUT_SECONDS=15
 ```
+
+In the matching Relworx business account, authorize the API key, add the
+production server's outbound public IP to **API Authorized IPs**, enable UGX
+transactions, and configure the Request Payment Webhook to the exact
+`RELWORX_WEBHOOK_URL` above (including its trailing slash).
 
 In cPanel Terminal:
 

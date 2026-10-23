@@ -160,23 +160,6 @@ async function createRecentWin() {
   }
 }
 
-async function resolvePayment(payment, decision) {
-  saving.value = true
-  error.value = ''
-  try {
-    await api(`/v1/owner/payments/${payment.id}/resolve/`, {
-      method: 'POST',
-      body: JSON.stringify({ decision }),
-    })
-    flash(decision === 'confirm' ? 'Payment confirmed.' : decision === 'refund' ? 'Payment refunded.' : 'Payment marked failed.')
-    await loadAll()
-  } catch (caught) {
-    error.value = caught.message
-  } finally {
-    saving.value = false
-  }
-}
-
 async function toggleBlock(customer) {
   try {
     await api(`/v1/owner/customers/${customer.id}/block/`, {
@@ -380,11 +363,11 @@ onMounted(loadAll)
             <div v-if="!payments.length" class="empty-row">No payments recorded.</div>
             <div v-else class="table-wrap">
               <table class="payment-table">
-                <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+                <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Provider reference</th></tr></thead>
                 <tbody>
                   <tr v-for="payment in payments" :key="payment.id">
                     <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.package.name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
-                    <td><div v-if="payment.status === 'pending'" class="decision-actions"><button type="button" class="table-action approve" :disabled="saving" @click="resolvePayment(payment, 'confirm')">Confirm paid</button><button type="button" class="table-action reject" :disabled="saving" @click="resolvePayment(payment, 'fail')">Mark failed</button></div><button v-else-if="payment.status === 'paid'" type="button" class="table-action reject" :disabled="saving" @click="resolvePayment(payment, 'refund')">Refund</button><span v-else>—</span></td>
+                    <td><code>{{ payment.internal_reference || 'Awaiting Relworx' }}</code></td>
                   </tr>
                 </tbody>
               </table>

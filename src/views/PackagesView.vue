@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { inject, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PhArrowRight, PhClock, PhMoneyWavy } from '@phosphor-icons/vue'
 import { api } from '../api/client'
@@ -14,6 +14,7 @@ const submitting = ref(null)
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const openDialog = inject('openAppDialog')
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'To be announced'
 
@@ -29,8 +30,8 @@ async function requestAccess(plan) {
   message.value = ''
   error.value = ''
   try {
-    await api('/v1/me/subscriptions/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
-    message.value = `${plan.name} purchase request sent.`
+    const purchase = await api('/v1/me/purchases/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
+    openDialog?.(purchase.is_paid ? 'account' : 'payment', purchase.is_paid ? {} : { plan, purchase })
   } catch (err) { error.value = err.message }
   finally { submitting.value = null }
 }

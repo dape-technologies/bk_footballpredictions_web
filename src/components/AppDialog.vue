@@ -5,18 +5,27 @@ import { PhArrowRight, PhCalendar, PhCheckCircle, PhClock, PhLockKey, PhMoneyWav
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
-const props = defineProps({ mode: { type: String, required: true } })
+const props = defineProps({
+  mode: { type: String, required: true },
+  plan: { type: Object, default: null },
+  purchase: { type: Object, default: null },
+})
 const emit = defineEmits(['close', 'switch'])
 const auth = useAuthStore()
 const router = useRouter()
 const form = reactive({ first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '' })
 const loading = ref(false)
 const error = ref('')
-const subscriptions = ref([])
+const purchases = ref([])
 const freeTip = ref(null)
+const payment = ref(null)
+const paidPurchase = ref(null)
+let pollTimer = null
 const registering = computed(() => props.mode === 'register')
 const isAccount = computed(() => props.mode === 'account')
 const isFreeTip = computed(() => props.mode === 'free-tip')
+const isPayment = computed(() => props.mode === 'payment')
+const paymentPending = computed(() => payment.value?.status === 'pending')
 const maximumBirthDate = (() => {
   const date = new Date()
   date.setFullYear(date.getFullYear() - 18)
@@ -34,9 +43,16 @@ async function loadDialogData() {
   if (isAccount.value) {
     if (!auth.isAuthenticated) return emit('switch', 'login')
     loading.value = true
-    try { subscriptions.value = await api('/v1/me/subscriptions/') }
+    try { purchases.value = await api('/v1/me/purchases/') }
     catch (err) { error.value = err.message }
     finally { loading.value = false }
+  }
+  if (isPayment.value) {
+    if (!auth.isAuthenticated) return emit('switch', 'login')
+    form.phone = auth.user?.phone || ''
+    payment.value = props.purchase?.latest_payment || null
+    if (props.purchase?.is_paid) paidPurchase.value = props.purchase
+    else if (paymentPending.value) schedulePaymentCheck(1500)
   }
   if (isFreeTip.value) {
     loading.value = true
@@ -45,6 +61,45 @@ async function loadDialogData() {
       freeTip.value = picks.find((pick) => !pick.locked) || null
     } catch (err) { error.value = err.message }
     finally { loading.value = false }
+  }
+}
+
+function schedulePaymentCheck(delay = 5000) {
+  clearTimeout(pollTimer)
+  pollTimer = setTimeout(refreshPayment, delay)
+}
+
+async function loadPaidPurchase() {
+  paidPurchase.value = await api(`/v1/me/purchases/${props.purchase.id}/`)
+}
+
+async function refreshPayment() {
+  if (!paymentPending.value) return
+  try {
+    const result = await api(`/v1/me/payments/${payment.value.id}/refresh/`, { method: 'POST' })
+    if (result?.id) payment.value = result
+    if (payment.value?.status === 'paid') await loadPaidPurchase()
+    else if (payment.value?.status === 'pending') schedulePaymentCheck()
+  } catch (err) {
+    error.value = err.message
+    if (paymentPending.value) schedulePaymentCheck(8000)
+  }
+}
+
+async function startPayment() {
+  error.value = ''
+  loading.value = true
+  clearTimeout(pollTimer)
+  try {
+    payment.value = await api(`/v1/me/purchases/${props.purchase.id}/payment-attempts/`, {
+      method: 'POST',
+      body: JSON.stringify({ phone: form.phone }),
+    })
+    if (paymentPending.value) schedulePaymentCheck(2500)
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    loading.value = false
   }
 }
 
@@ -62,7 +117,7 @@ async function submit() {
     const user = registering.value ? await auth.register(payload) : await auth.login(payload)
     if (user.is_owner) {
       emit('close')
-      router.push('/admin')
+      router.push('/owner/dashboard')
     } else {
       emit('close')
       await router.push('/')
@@ -70,14 +125,6 @@ async function submit() {
     }
   } catch (err) { error.value = err.message }
   finally { loading.value = false }
-}
-
-async function cancelAccess(id) {
-  error.value = ''
-  try {
-    await api(`/v1/me/subscriptions/${id}/cancel/`, { method: 'POST' })
-    await loadDialogData()
-  } catch (err) { error.value = err.message }
 }
 
 async function signOut() {
@@ -94,6 +141,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(pollTimer)
   document.body.style.overflow = ''
   window.removeEventListener('keydown', onKeydown)
 })
@@ -102,7 +150,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 grid place-items-center overflow-x-hidden overflow-y-auto bg-black/75 p-3 backdrop-blur-md sm:p-6" role="presentation" @mousedown.self="emit('close')">
-      <section class="dialog-panel relative max-h-[calc(100dvh-1.5rem)] min-w-0 w-full max-w-xl overflow-x-hidden overflow-y-auto break-words rounded-[1.5rem] border border-white/12 bg-[#101713] p-5 text-[#f2f7f3] shadow-[0_32px_100px_rgba(0,0,0,.65)] sm:max-h-[92dvh] sm:rounded-[1.75rem] sm:p-8" role="dialog" aria-modal="true" :aria-label="isFreeTip ? 'Free earning insight' : isAccount ? 'Member access' : registering ? 'Create account' : 'Sign in'">
+      <section class="dialog-panel relative max-h-[calc(100dvh-1.5rem)] min-w-0 w-full max-w-xl overflow-x-hidden overflow-y-auto break-words rounded-[1.5rem] border border-white/12 bg-[#101713] p-5 text-[#f2f7f3] shadow-[0_32px_100px_rgba(0,0,0,.65)] sm:max-h-[92dvh] sm:rounded-[1.75rem] sm:p-8" role="dialog" aria-modal="true" :aria-label="isFreeTip ? 'Free earning insight' : isPayment ? 'Mobile money checkout' : isAccount ? 'Member access' : registering ? 'Create account' : 'Sign in'">
         <button type="button" class="absolute right-4 top-4 grid size-10 place-items-center rounded-xl border border-white/10 text-white/55 hover:border-white/25 hover:text-white" aria-label="Close" @click="emit('close')"><PhX :size="19" /></button>
 
         <template v-if="isFreeTip">
@@ -122,17 +170,49 @@ onBeforeUnmount(() => {
           <button type="button" class="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98]" @click="emit('close')">Continue to VIP access <PhArrowRight :size="18" /></button>
         </template>
 
+        <template v-else-if="isPayment">
+          <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhMoneyWavy :size="27" weight="duotone" /></span>
+          <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Secure mobile money</p>
+          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">Pay {{ props.plan?.currency }} {{ Number(props.plan?.price || 0).toLocaleString('en-UG') }}</h2>
+          <p class="mt-3 text-white/50">{{ props.plan?.name }} · MTN MoMo or Airtel Money</p>
+
+          <div v-if="paidPurchase" class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-5">
+            <PhCheckCircle :size="34" class="text-[var(--app-accent)]" weight="fill" />
+            <h3 class="mt-4 text-xl font-black">Payment confirmed</h3>
+            <p class="mt-2 text-sm leading-6 text-white/60">Your package was unlocked automatically.</p>
+            <div class="mt-5 border-t border-white/10 pt-4"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-xl font-black tracking-wider text-[var(--app-accent)]">{{ paidPurchase.code }}</code></div>
+            <a :href="paidPurchase.betslip_link" target="_blank" rel="noopener" class="mt-5 flex min-h-12 items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></a>
+          </div>
+
+          <div v-else-if="paymentPending" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5 text-center">
+            <span class="mx-auto grid size-12 place-items-center rounded-full border border-[var(--app-accent)]/40 text-[var(--app-accent)]"><PhClock :size="25" /></span>
+            <h3 class="mt-4 text-xl font-black">Approve the prompt on your phone</h3>
+            <p class="mt-2 text-sm leading-6 text-white/55">Enter your mobile-money PIN on {{ payment.payer_msisdn }}. This screen checks Relworx automatically.</p>
+            <p class="mt-4 text-xs text-white/35">Reference: {{ payment.reference }}</p>
+            <button type="button" class="mt-5 text-sm font-bold text-[var(--app-accent)] underline underline-offset-4" @click="refreshPayment">Check payment now</button>
+          </div>
+
+          <form v-else class="mt-7 grid gap-4" @submit.prevent="startPayment">
+            <label class="grid gap-2 text-sm font-semibold">Mobile-money number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"><small class="font-normal text-white/40">Use the MTN or Airtel number that will approve the payment.</small></label>
+            <p v-if="payment?.status === 'failed'" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ payment.provider_message || 'The payment was not completed. You can try again.' }}</p>
+            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Sending prompt…' : payment?.status === 'failed' ? 'Try payment again' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
+            <p class="text-center text-xs leading-5 text-white/35">Access unlocks only after Relworx confirms the exact amount, currency, and transaction reference.</p>
+          </form>
+          <p v-if="paymentPending && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>
+        </template>
+
         <template v-else-if="isAccount">
           <div class="flex min-w-0 items-center gap-3 pr-12"><span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhUserCircle :size="28" /></span><div class="min-w-0"><p class="text-xs font-bold uppercase tracking-[.16em] text-[var(--app-accent)]">Member access</p><h2 class="break-words text-xl font-black sm:text-2xl">{{ auth.user?.first_name }} {{ auth.user?.surname }}</h2></div></div>
           <p class="mt-2 text-sm text-white/45">{{ auth.user?.phone }}</p>
           <p v-if="error" class="mt-6 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ error }}</p>
           <div v-if="loading" class="mt-7 h-52 animate-pulse rounded-2xl bg-white/5"></div>
-          <div v-else-if="subscriptions.length" class="mt-7 grid gap-3">
-            <article v-for="sub in subscriptions" :key="sub.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
-              <div class="flex min-w-0 flex-wrap items-center justify-between gap-3"><h3 class="min-w-0 break-words font-bold">{{ sub.package.name }}</h3><span :class="['shrink-0 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider', sub.status === 'active' ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-white/7 text-white/55']">{{ sub.status }}</span></div>
-              <dl class="mt-4 grid grid-cols-2 gap-4 text-xs"><div><dt class="flex items-center gap-1.5 text-white/40"><PhCalendar :size="14" /> Payment</dt><dd class="mt-1 font-semibold capitalize">{{ sub.payment_status || 'Not recorded' }}</dd><small v-if="sub.payment_reference" class="mt-1 block text-[10px] text-white/35">{{ sub.payment_reference }}</small></div><div><dt class="flex items-center gap-1.5 text-white/40"><PhClock :size="14" /> Expires</dt><dd class="mt-1 font-semibold">{{ sub.expires_at ? new Date(sub.expires_at).toLocaleDateString('en-UG') : 'Not set' }}</dd></div></dl>
-              <div v-if="sub.grants_access" class="mt-4 grid gap-3 border-t border-white/10 pt-4"><div class="min-w-0"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-base font-black tracking-wider text-[var(--app-accent)]">{{ sub.code }}</code></div><a :href="sub.betslip_link" target="_blank" rel="noopener" class="flex min-h-10 items-center justify-center gap-2 bg-[var(--app-accent)] px-4 text-sm font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="16" /></a></div>
-              <button v-if="['pending', 'active'].includes(sub.status)" type="button" class="mt-4 text-xs font-bold text-red-300 underline underline-offset-4" @click="cancelAccess(sub.id)">Cancel access</button>
+          <div v-else-if="purchases.length" class="mt-7 grid gap-3">
+            <article v-for="purchaseItem in purchases" :key="purchaseItem.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
+              <div class="flex min-w-0 flex-wrap items-center justify-between gap-3"><h3 class="min-w-0 break-words font-bold">{{ purchaseItem.package.name }}</h3><span :class="['shrink-0 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider', purchaseItem.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-white/7 text-white/55']">{{ purchaseItem.status }}</span></div>
+              <dl class="mt-4 grid grid-cols-2 gap-4 text-xs"><div><dt class="flex items-center gap-1.5 text-white/40"><PhCalendar :size="14" /> Amount</dt><dd class="mt-1 font-semibold">{{ purchaseItem.currency_snapshot }} {{ Number(purchaseItem.price_snapshot).toLocaleString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-white/40"><PhClock :size="14" /> Purchased</dt><dd class="mt-1 font-semibold">{{ purchaseItem.paid_at ? new Date(purchaseItem.paid_at).toLocaleDateString('en-UG') : 'Awaiting payment' }}</dd></div></dl>
+              <div v-if="purchaseItem.is_paid" class="mt-4 grid gap-3 border-t border-white/10 pt-4"><div class="min-w-0"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-base font-black tracking-wider text-[var(--app-accent)]">{{ purchaseItem.code }}</code></div><a :href="purchaseItem.betslip_link" target="_blank" rel="noopener" class="flex min-h-10 items-center justify-center gap-2 bg-[var(--app-accent)] px-4 text-sm font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="16" /></a></div>
+              <button v-else type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Continue payment</button>
             </article>
           </div>
           <div v-else class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-center"><PhLockKey :size="28" class="mx-auto text-[var(--app-accent)]" /><p class="mt-3 font-bold">No access requests yet</p><p class="mt-1 text-sm text-white/45">Choose a VIP pass from the page to send your first request.</p></div>

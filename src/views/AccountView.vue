@@ -6,20 +6,15 @@ import { useAuthStore } from '../stores/auth'
 import StatePanel from '../components/StatePanel.vue'
 
 const auth = useAuthStore()
-const subscriptions = ref([])
+const purchases = ref([])
 const loading = ref(true)
 const error = ref('')
 
 async function load() {
   loading.value = true
-  try { subscriptions.value = await api('/v1/me/subscriptions/') }
+  try { purchases.value = await api('/v1/me/purchases/') }
   catch (err) { error.value = err.message }
   finally { loading.value = false }
-}
-
-async function cancel(id) {
-  try { await api(`/v1/me/subscriptions/${id}/cancel/`, { method: 'POST' }); await load() }
-  catch (err) { error.value = err.message }
 }
 
 onMounted(load)
@@ -31,12 +26,12 @@ onMounted(load)
     <section class="mt-12"><h2 class="text-2xl font-bold tracking-[-.03em]">Your access</h2><p class="mt-2 text-sm text-[var(--app-muted)]">Track active packages and pending requests.</p>
       <StatePanel v-if="error" title="Could not load your access" :message="error" tone="error" class="mt-6" />
       <div v-if="loading" class="mt-6 h-64 animate-pulse rounded-2xl bg-[var(--app-surface)]"></div>
-      <StatePanel v-else-if="!subscriptions.length" title="No access requests yet" message="Choose a plan and send your first request." class="mt-6"><RouterLink to="/packages" class="inline-flex items-center gap-2 rounded-xl bg-[var(--app-accent)] px-4 py-3 font-bold text-[var(--app-accent-ink)]">Browse plans <PhArrowRight :size="16" /></RouterLink></StatePanel>
+      <StatePanel v-else-if="!purchases.length" title="No purchases yet" message="Choose a plan and make your first payment." class="mt-6"><RouterLink to="/packages" class="inline-flex items-center gap-2 rounded-xl bg-[var(--app-accent)] px-4 py-3 font-bold text-[var(--app-accent-ink)]">Browse plans <PhArrowRight :size="16" /></RouterLink></StatePanel>
       <div v-else class="mt-6 grid gap-4">
-        <article v-for="sub in subscriptions" :key="sub.id" class="grid gap-5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-5 md:grid-cols-[1fr_auto_auto] md:items-center">
-          <div><span :class="['inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em]', sub.status === 'active' ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-[var(--app-surface-2)] text-[var(--app-muted)]']">{{ sub.status }}</span><h3 class="mt-3 text-xl font-bold">{{ sub.package.name }}</h3><p class="mt-1 text-sm text-[var(--app-muted)]">{{ sub.customer_message || 'The owner will update this request shortly.' }}</p></div>
-          <dl class="grid grid-cols-2 gap-5 text-sm"><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhCalendar :size="15" /> Requested</dt><dd class="mt-1 font-semibold">{{ new Date(sub.requested_at).toLocaleDateString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhClock :size="15" /> Expires</dt><dd class="mt-1 font-semibold">{{ sub.expires_at ? new Date(sub.expires_at).toLocaleString('en-UG') : 'Not set' }}</dd></div></dl>
-          <button v-if="['pending', 'active'].includes(sub.status)" class="justify-self-start rounded-xl border border-red-400/30 px-3 py-2 text-sm font-bold text-red-300 hover:bg-red-500/10 md:justify-self-end" @click="cancel(sub.id)">Cancel access</button>
+        <article v-for="purchase in purchases" :key="purchase.id" class="grid gap-5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-5 md:grid-cols-[1fr_auto_auto] md:items-center">
+          <div><span :class="['inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em]', purchase.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-[var(--app-surface-2)] text-[var(--app-muted)]']">{{ purchase.status }}</span><h3 class="mt-3 text-xl font-bold">{{ purchase.package.name }}</h3><p class="mt-1 text-sm text-[var(--app-muted)]">{{ purchase.is_paid ? 'Payment verified and access unlocked.' : 'Complete mobile-money payment to unlock this package.' }}</p></div>
+          <dl class="grid grid-cols-2 gap-5 text-sm"><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhCalendar :size="15" /> Initiated</dt><dd class="mt-1 font-semibold">{{ new Date(purchase.initiated_at).toLocaleDateString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhClock :size="15" /> Paid</dt><dd class="mt-1 font-semibold">{{ purchase.paid_at ? new Date(purchase.paid_at).toLocaleString('en-UG') : 'Not yet' }}</dd></div></dl>
+          <a v-if="purchase.is_paid" :href="purchase.betslip_link" target="_blank" rel="noopener" class="justify-self-start rounded-xl bg-[var(--app-accent)] px-3 py-2 text-sm font-bold text-[var(--app-accent-ink)] md:justify-self-end">Open betslip</a>
         </article>
       </div>
     </section>

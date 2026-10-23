@@ -33,8 +33,12 @@ async function requestAccess(plan) {
   notice.value = ''
   errors.value.subscription = ''
   try {
-    await api('/v1/me/subscriptions/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
-    notice.value = `${plan.name} purchase request sent.`
+    const purchase = await api('/v1/me/purchases/', { method: 'POST', body: JSON.stringify({ package_id: plan.id }) })
+    if (purchase.is_paid) {
+      openDialog?.('account')
+    } else {
+      openDialog?.('payment', { plan, purchase })
+    }
   } catch (error) { errors.value.subscription = error.message }
   finally { submitting.value = null }
 }
