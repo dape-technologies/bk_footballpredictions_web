@@ -6,7 +6,7 @@ on:
         description: Rotation phase
         required: true
         type: choice
-        options: [install-new, verify-new, remove-old]
+        options: [verify-new, remove-old]
 permissions:
   contents: read
 jobs:
@@ -15,8 +15,9 @@ jobs:
     environment: production
     env:
       SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '21098' }}
-      NEW_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMu8yLouDYfC1g31Ezdaac0NvKv8LDOCV9/SbGw4UuIt github-actions-cpanel-2026-10-23
-      OLD_KEY_BLOB: AAAAC3NzaC1lZDI1NTE5AAAAIIufgi5MzZhjRz9GUrbUwtjLBQXZsH57UD1I36rUQrCr
+      NEW_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII3RmVMiHx9J0RiOMAF33PCFQieejOrATiH6FkHy1FFA github-actions-cpanel-2026-10-23-v2
+      OLD_EXPOSED_BLOB: AAAAC3NzaC1lZDI1NTE5AAAAIIufgi5MzZhjRz9GUrbUwtjLBQXZsH57UD1I36rUQrCr
+      OLD_V1_BLOB: AAAAC3NzaC1lZDI1NTE5AAAAIMu8yLouDYfC1g31Ezdaac0NvKv8LDOCV9/SbGw4UuIt
     steps:
       - name: Configure SSH
         env:
@@ -26,34 +27,32 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/cpanel_deploy
           chmod 600 ~/.ssh/cpanel_deploy
-          ssh-keygen -lf ~/.ssh/cpanel_deploy
           derived_public=$(ssh-keygen -y -P '' -f ~/.ssh/cpanel_deploy)
           expected_public=$(printf '%s\n' "$NEW_PUBLIC_KEY" | awk '{print $1 " " $2}')
           test "$derived_public" = "$expected_public"
-          echo 'Private key is unencrypted and matches the authorized public key.'
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Rotate authorized key
+      - name: Rotate authorized keys
         env:
           SSH_HOST: ${{ secrets.CPANEL_HOST }}
           SSH_USER: ${{ secrets.CPANEL_USERNAME }}
           PHASE: ${{ inputs.phase }}
         run: |
-          ssh -vv -i ~/.ssh/cpanel_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "bash -s -- '$PHASE' '$NEW_PUBLIC_KEY' '$OLD_KEY_BLOB'" <<'REMOTE'
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/cpanel_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "bash -s -- '$PHASE' '$NEW_PUBLIC_KEY' '$OLD_EXPOSED_BLOB' '$OLD_V1_BLOB'" <<'REMOTE'
           set -euo pipefail
-          phase="$1"; new_key="$2"; old_blob="$3"
-          install -d -m 700 "$HOME/.ssh"
-          touch "$HOME/.ssh/authorized_keys"
-          chmod 600 "$HOME/.ssh/authorized_keys"
+          phase="$1"; new_key="$2"; old_exposed="$3"; old_v1="$4"
+          authorized="$HOME/.ssh/authorized_keys"
+          grep -Fqx "$new_key" "$authorized"
           case "$phase" in
-            install-new) grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys" || printf '%s\n' "$new_key" >> "$HOME/.ssh/authorized_keys" ;;
-            verify-new) grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys" ;;
+            verify-new) ;;
             remove-old)
-              grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys"
-              awk -v old="$old_blob" '$2 != old' "$HOME/.ssh/authorized_keys" > "$HOME/.ssh/authorized_keys.next"
-              chmod 600 "$HOME/.ssh/authorized_keys.next"
-              mv "$HOME/.ssh/authorized_keys.next" "$HOME/.ssh/authorized_keys"
+              awk -v old1="$old_exposed" -v old2="$old_v1" '$2 != old1 && $2 != old2' "$authorized" > "$authorized.next"
+              chmod 600 "$authorized.next"
+              mv "$authorized.next" "$authorized"
+              grep -Fqx "$new_key" "$authorized"
+              ! grep -Fq "$old_exposed" "$authorized"
+              ! grep -Fq "$old_v1" "$authorized"
               ;;
             *) exit 2 ;;
           esac
