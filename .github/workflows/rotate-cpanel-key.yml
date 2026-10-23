@@ -27,8 +27,12 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/cpanel_deploy
           chmod 600 ~/.ssh/cpanel_deploy
+          echo 'Secret key fingerprint:'
+          ssh-keygen -lf ~/.ssh/cpanel_deploy
           derived_public=$(ssh-keygen -y -P '' -f ~/.ssh/cpanel_deploy)
           expected_public=$(printf '%s\n' "$NEW_PUBLIC_KEY" | awk '{print $1 " " $2}')
+          echo 'Expected public key fingerprint:'
+          printf '%s\n' "$NEW_PUBLIC_KEY" | ssh-keygen -lf -
           test "$derived_public" = "$expected_public"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
