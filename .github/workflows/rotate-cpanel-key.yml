@@ -26,6 +26,7 @@ jobs:
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/cpanel_deploy
           chmod 600 ~/.ssh/cpanel_deploy
+          ssh-keygen -lf ~/.ssh/cpanel_deploy
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       - name: Rotate authorized key
@@ -37,9 +38,7 @@ jobs:
           ssh -i ~/.ssh/cpanel_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "bash -s -- '$PHASE' '$NEW_PUBLIC_KEY' '$OLD_KEY_BLOB'" <<'REMOTE'
           set -euo pipefail
-          phase="$1"
-          new_key="$2"
-          old_blob="$3"
+          phase="$1"; new_key="$2"; old_blob="$3"
           install -d -m 700 "$HOME/.ssh"
           touch "$HOME/.ssh/authorized_keys"
           chmod 600 "$HOME/.ssh/authorized_keys"
