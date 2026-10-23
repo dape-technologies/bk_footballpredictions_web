@@ -61,25 +61,26 @@ test('guest authentication resumes checkout and verified payment reveals the pac
     }
     if (path === '/api/v1/packages/') return json([plan])
     if (path === '/api/v1/predictions/' || path === '/api/v1/recent-wins/' || path === '/api/v1/testimonials/') return json([])
-    if (path === '/api/v1/me/purchases/' && request.method() === 'POST') return json(purchase(false), 201)
+    if (path === '/api/v1/me/purchases/' && request.method() === 'POST') return json({ ...purchase(false), latest_payment: null }, 201)
     if (path === '/api/v1/me/purchases/21/payment-attempts/' && request.method() === 'POST') return json(purchase(false).latest_payment, 202)
+    if (path === '/api/v1/me/payments/31/refresh/' && request.method() === 'POST') return json(purchase(true).latest_payment)
     if (path === '/api/v1/me/purchases/21/' && request.method() === 'GET') return json(purchase(true))
     return json({ detail: `Unhandled test route: ${path}` }, 404)
   })
 
   await page.goto('/')
-  await page.getByRole('button', { name: 'Buy package' }).click()
+  await page.getByRole('button', { name: 'Buy slip' }).click()
 
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
   await page.getByLabel('Phone number').fill('0702000001')
   await page.getByLabel('Password').fill('member-pass-27')
-  await page.getByRole('button', { name: 'Sign in and continue' }).click()
+  await page.getByRole('dialog', { name: 'Sign in' }).getByRole('button', { name: 'Sign in', exact: true }).click()
 
-  await expect(page.getByRole('heading', { name: 'Daily Edge' })).toBeVisible()
-  await expect(page.getByText('UGX 10,000', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Pay UGX 10,000' }).click()
+  await page.getByRole('button', { name: 'Buy slip' }).click()
+  await expect(page.getByRole('heading', { name: 'Pay UGX 10,000' })).toBeVisible()
+  await page.getByRole('button', { name: 'Pay with mobile money' }).click()
 
-  await expect(page.getByText('Approve the request on your phone')).toBeVisible()
+  await expect(page.getByText('Approve the prompt on your phone')).toBeVisible()
   await expect(page.getByText('Payment confirmed')).toBeVisible({ timeout: 7000 })
   await expect(page.getByText('BK-DAY-78')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open betslip' })).toHaveAttribute('href', 'https://example.com/slips/daily-edge')

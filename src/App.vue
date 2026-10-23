@@ -10,18 +10,18 @@ import { useAuthStore } from './stores/auth'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const isOwnerArea = computed(() => route.path.startsWith('/admin'))
+const isOwnerArea = computed(() => route.path.startsWith('/owner'))
 const showPublicShell = computed(() => !isOwnerArea.value)
 const deferredInstall = ref(null)
 const canInstall = ref(false)
 const dialog = ref(null)
+const dialogData = ref({})
 const profileOpen = ref(false)
 const profileMenu = ref(null)
 const purchases = ref([])
 const profileLoading = ref(false)
 const profileError = ref('')
 const paidPurchases = computed(() => purchases.value.filter((purchase) => purchase.is_paid))
-const checkoutPackage = ref(JSON.parse(sessionStorage.getItem('bk-checkout-package') || 'null'))
 
 const navigation = computed(() => [
   { id: 'top', label: 'Home', icon: PhHouse },
@@ -29,31 +29,14 @@ const navigation = computed(() => [
   { id: 'results', label: 'Recent wins', icon: PhChartLineUp },
 ])
 
-function openDialog(mode) {
+function openDialog(mode, data = {}) {
   dialog.value = mode
-}
-
-function startPackageCheckout(plan) {
-  checkoutPackage.value = plan
-  sessionStorage.setItem('bk-checkout-package', JSON.stringify(plan))
-  openDialog(auth.isAuthenticated ? 'checkout' : 'login')
-}
-
-function handleAuthenticated(user) {
-  if (user?.is_owner) {
-    closeDialog()
-    router.push('/admin')
-    return
-  }
-  openDialog(checkoutPackage.value ? 'checkout' : 'account')
-}
-
-function finishCheckout() {
-  sessionStorage.removeItem('bk-checkout-package')
+  dialogData.value = data
 }
 
 function closeDialog() {
   dialog.value = null
+  dialogData.value = {}
   if (route.meta.dialog) router.replace('/')
 }
 
@@ -103,7 +86,6 @@ async function installApp() {
 }
 
 provide('openAppDialog', openDialog)
-provide('startPackageCheckout', startPackageCheckout)
 
 watch(() => route.meta.dialog, (mode) => {
   if (mode) dialog.value = mode
@@ -156,15 +138,15 @@ onBeforeUnmount(() => {
                 <div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Signed in as</p><strong class="block truncate text-lg">{{ auth.user?.first_name }} {{ auth.user?.surname }}</strong></div>
               </header>
               <div class="p-4">
-                <div class="flex items-center justify-between"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">My purchases</p><PhCrown :size="18" class="text-[var(--app-accent)]" weight="duotone" /></div>
-                <p v-if="profileLoading" class="mt-3 animate-pulse text-sm text-white/45">Checking your purchases…</p>
+                <div class="flex items-center justify-between"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Purchased packages</p><PhCrown :size="18" class="text-[var(--app-accent)]" weight="duotone" /></div>
+                <p v-if="profileLoading" class="mt-3 animate-pulse text-sm text-white/45">Checking your access…</p>
                 <p v-else-if="profileError" class="mt-3 text-sm text-red-300">{{ profileError }}</p>
                 <div v-else-if="paidPurchases.length" class="mt-3 grid gap-2">
                   <button v-for="purchase in paidPurchases" :key="purchase.id" type="button" class="flex w-full items-center justify-between rounded-xl bg-white/5 p-3 text-left hover:bg-white/8" @click="profileOpen=false; openDialog('account')">
-                    <span><strong class="block text-sm">{{ purchase.package.name }}</strong><small class="mt-1 block text-[11px] text-white/40">Purchased {{ new Date(purchase.paid_at).toLocaleDateString('en-UG') }}</small></span><span class="size-2 rounded-full bg-[var(--app-accent)]"></span>
+                    <span><strong class="block text-sm">{{ purchase.package.name }}</strong><small class="mt-1 block text-[11px] text-white/40">Paid {{ new Date(purchase.paid_at).toLocaleDateString('en-UG') }}</small></span><span class="size-2 rounded-full bg-[var(--app-accent)]"></span>
                   </button>
                 </div>
-                <button v-else type="button" class="mt-3 w-full rounded-xl border border-dashed border-white/15 p-3 text-left text-sm text-white/45 hover:border-white/25 hover:text-white/70" @click="profileOpen=false; scrollToSection('packages')">No paid packages yet. View packages.</button>
+                <button v-else type="button" class="mt-3 w-full rounded-xl border border-dashed border-white/15 p-3 text-left text-sm text-white/45 hover:border-white/25 hover:text-white/70" @click="profileOpen=false; scrollToSection('packages')">No purchases yet. View VIP access.</button>
               </div>
               <button type="button" class="flex w-full items-center gap-2 border-t border-white/10 px-4 py-3.5 text-sm font-bold text-white/55 hover:bg-white/5 hover:text-white" role="menuitem" @click="signOut"><PhSignOut :size="18" /> Sign out</button>
             </section>
@@ -202,6 +184,6 @@ onBeforeUnmount(() => {
       </div>
     </footer>
 
-    <AppDialog v-if="dialog" :mode="dialog" :package="checkoutPackage" @close="closeDialog" @switch="openDialog" @authenticated="handleAuthenticated" @purchase-complete="finishCheckout" />
+    <AppDialog v-if="dialog" :mode="dialog" v-bind="dialogData" @close="closeDialog" @switch="openDialog" />
   </div>
 </template>

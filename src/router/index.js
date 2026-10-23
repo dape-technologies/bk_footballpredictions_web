@@ -21,21 +21,21 @@ const router = createRouter({
     { path: '/login', component: HomeView, meta: { guest: true, dialog: 'login' } },
     { path: '/register', component: HomeView, meta: { guest: true, dialog: 'register' } },
     { path: '/account', component: HomeView, meta: { auth: true, dialog: 'account' } },
-    { path: '/admin/login', component: AdminLoginView, meta: { adminGuest: true } },
-    { path: '/admin', component: OwnerDashboard, meta: { owner: true } },
-    { path: '/owner', redirect: '/admin' },
+    { path: '/owner/login', component: AdminLoginView, meta: { ownerGuest: true } },
+    { path: '/owner/dashboard', component: OwnerDashboard, meta: { owner: true } },
+    { path: '/owner', redirect: '/owner/dashboard' },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  if (to.meta.auth || to.meta.owner || to.meta.guest || to.meta.adminGuest) await auth.initialize()
+  if (to.meta.auth || to.meta.owner || to.meta.guest || to.meta.ownerGuest) await auth.initialize()
   else auth.initialize()
   if (to.meta.auth && !auth.isAuthenticated) return { path: '/login' }
-  if (to.meta.owner && !auth.isOwner) return { path: '/admin/login', query: { next: to.fullPath } }
-  if (to.meta.adminGuest && auth.isOwner) return '/admin'
-  if (to.meta.guest && auth.isAuthenticated) return auth.isOwner ? '/admin' : '/'
+  if (to.meta.owner && !auth.isOwner) return { path: '/owner/login', query: { next: to.fullPath } }
+  if (to.meta.ownerGuest && auth.isOwner) return '/owner/dashboard'
+  if (to.meta.guest && auth.isAuthenticated) return auth.isOwner ? '/owner/dashboard' : '/'
   return true
 })
 
