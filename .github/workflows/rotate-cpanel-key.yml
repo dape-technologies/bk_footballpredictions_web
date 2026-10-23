@@ -6,10 +6,7 @@ on:
         description: Rotation phase
         required: true
         type: choice
-        options:
-          - install-new
-          - verify-new
-          - remove-old
+        options: [install-new, verify-new, remove-old]
 permissions:
   contents: read
 jobs:
@@ -18,7 +15,7 @@ jobs:
     environment: production
     env:
       SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '21098' }}
-      NEW_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDqYsWe/OnvzoDVHDoQQCWuL4uB5I7qimIgDIaNISmqp github-actions-cpanel-2026-10-23
+      NEW_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMu8yLouDYfC1g31Ezdaac0NvKv8LDOCV9/SbGw4UuIt github-actions-cpanel-2026-10-23
       OLD_KEY_BLOB: AAAAC3NzaC1lZDI1NTE5AAAAIIufgi5MzZhjRz9GUrbUwtjLBQXZsH57UD1I36rUQrCr
     steps:
       - name: Configure SSH
@@ -47,12 +44,8 @@ jobs:
           touch "$HOME/.ssh/authorized_keys"
           chmod 600 "$HOME/.ssh/authorized_keys"
           case "$phase" in
-            install-new)
-              grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys" || printf '%s\n' "$new_key" >> "$HOME/.ssh/authorized_keys"
-              ;;
-            verify-new)
-              grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys"
-              ;;
+            install-new) grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys" || printf '%s\n' "$new_key" >> "$HOME/.ssh/authorized_keys" ;;
+            verify-new) grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys" ;;
             remove-old)
               grep -Fqx "$new_key" "$HOME/.ssh/authorized_keys"
               awk -v old="$old_blob" '$2 != old' "$HOME/.ssh/authorized_keys" > "$HOME/.ssh/authorized_keys.next"
