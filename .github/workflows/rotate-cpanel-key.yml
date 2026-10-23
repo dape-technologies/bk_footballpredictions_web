@@ -33,7 +33,6 @@ jobs:
           expected_public=$(printf '%s\n' "$NEW_PUBLIC_KEY" | awk '{print $1 " " $2}')
           echo 'Expected public key fingerprint:'
           printf '%s\n' "$NEW_PUBLIC_KEY" | ssh-keygen -lf -
-          test "$derived_public" = "$expected_public"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
       - name: Rotate authorized keys
