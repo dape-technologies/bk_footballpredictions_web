@@ -5,21 +5,25 @@ import {
   PhChartLineUp,
   PhCheck,
   PhCreditCard,
+  PhDownloadSimple,
+  PhEye,
   PhHouse,
   PhHourglassMedium,
   PhMoneyWavy,
   PhPackage,
   PhPlus,
+  PhReceipt,
   PhSignOut,
   PhTrash,
   PhTrophy,
   PhUsersThree,
+  PhWarningCircle,
   PhX,
 } from '@phosphor-icons/vue'
 import '@fontsource-variable/plus-jakarta-sans'
 import AdminMediaUploader from '../components/AdminMediaUploader.vue'
 import BrandMark from '../components/BrandMark.vue'
-import { api } from '../api/client'
+import { API_ROOT, api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -31,6 +35,11 @@ const notice = ref('')
 const metrics = ref({})
 const packages = ref([])
 const payments = ref([])
+const paymentReport = ref({ summary: {}, by_status: [], by_provider: [], by_package: [], failure_categories: [] })
+const performance = ref({ summary: {}, by_package: [], unsettled: 0 })
+const paymentAlerts = ref([])
+const selectedPayment = ref(null)
+const paymentFilters = reactive({ search: '', status: '', failure_category: '', from: '', to: '' })
 const wins = ref([])
 const customers = ref([])
 const packageFile = ref(null)
@@ -66,10 +75,19 @@ const emptyPackage = () => ({
 const packageForm = reactive(emptyPackage())
 const winForm = reactive({ caption: '' })
 const money = (value) => new Intl.NumberFormat('en-UG').format(value || 0)
+const percent = (value) => `${Number(value || 0).toFixed(1)}%`
 const formatDate = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : 'Not set'
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+function paymentQuery() {
+  const query = new URLSearchParams()
+  Object.entries(paymentFilters).forEach(([key, value]) => { if (value) query.set(key, value) })
+  return query.toString()
+}
+
+const paymentExportUrl = computed(() => `${API_ROOT}/v1/owner/payments/export.csv/${paymentQuery() ? `?${paymentQuery()}` : ''}`)
 
 async function loadAll() {
   loading.value = true
@@ -81,13 +99,47 @@ async function loadAll() {
       api('/v1/owner/payments/'),
       api('/v1/owner/recent-wins/'),
       api('/v1/owner/customers/'),
+      api('/v1/owner/payments/report/'),
+      api('/v1/owner/performance/'),
+      api('/v1/owner/payment-alerts/?open=true'),
     ])
-    ;[metrics.value, packages.value, payments.value, wins.value, customers.value] = data
+    ;[metrics.value, packages.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value, paymentAlerts.value] = data
   } catch (caught) {
     error.value = caught.message
   } finally {
     loading.value = false
   }
+}
+
+async function loadPaymentOperations() {
+  loading.value = true
+  error.value = ''
+  try {
+    const query = paymentQuery()
+    const suffix = query ? `?${query}` : ''
+    ;[payments.value, paymentReport.value, paymentAlerts.value] = await Promise.all([
+      api(`/v1/owner/payments/${suffix}`),
+      api(`/v1/owner/payments/report/${suffix}`),
+      api('/v1/owner/payment-alerts/?open=true'),
+    ])
+  } catch (caught) {
+    error.value = caught.message
+  } finally {
+    loading.value = false
+  }
+}
+
+async function openPayment(payment) {
+  try { selectedPayment.value = await api(`/v1/owner/payments/${payment.id}/`) }
+  catch (caught) { error.value = caught.message }
+}
+
+async function resolveAlert(alert) {
+  try {
+    await api(`/v1/owner/payment-alerts/${alert.id}/resolve/`, { method: 'POST' })
+    flash('Payment alert resolved.')
+    await loadPaymentOperations()
+  } catch (caught) { error.value = caught.message }
 }
 
 function flash(text) {
@@ -256,7 +308,7 @@ onMounted(loadAll)
                 <div v-for="plan in metrics.package_demand" :key="plan.id">
                   <strong>{{ plan.name }}</strong>
                   <span><i :style="{ width: `${Math.min(100, plan.request_count * 12)}%` }"></i></span>
-                  <b>{{ plan.request_count }} requests / {{ plan.active_count }} active</b>
+                  <b>{{ plan.request_count }} requests / {{ plan.paid_count }} paid</b>
                 </div>
               </div>
             </section>
@@ -267,6 +319,23 @@ onMounted(loadAll)
               <button type="button" class="owner-text-button" @click="section='payments'">View payments</button>
             </section>
           </div>
+
+          <section class="owner-panel performance-panel">
+            <div class="panel-heading"><div><p>Measured performance</p><h2>Settled prediction record</h2></div><PhChartLineUp :size="24" /></div>
+            <div class="report-kpis">
+              <article><span>Hit rate</span><strong>{{ percent(performance.summary?.hit_rate) }}</strong><small>Wins ÷ decided predictions</small></article>
+              <article><span>Settled</span><strong>{{ performance.summary?.settled || 0 }}</strong><small>{{ performance.summary?.won || 0 }} won · {{ performance.summary?.lost || 0 }} lost · {{ performance.summary?.void || 0 }} void</small></article>
+              <article><span>Average odds</span><strong>{{ performance.summary?.average_odds || 0 }}</strong><small>Across settled predictions</small></article>
+              <article><span>Awaiting result</span><strong>{{ performance.unsettled || 0 }}</strong><small>Published and unsettled</small></article>
+            </div>
+            <div v-if="performance.by_package?.length" class="table-wrap performance-table-wrap">
+              <table>
+                <thead><tr><th>Package</th><th>Settled</th><th>Won</th><th>Lost</th><th>Void</th><th>Hit rate</th><th>Average odds</th></tr></thead>
+                <tbody><tr v-for="row in performance.by_package" :key="row.package_id || 'unassigned'"><td><strong>{{ row.package__name || 'Unassigned/free' }}</strong></td><td>{{ row.settled }}</td><td>{{ row.won }}</td><td>{{ row.lost }}</td><td>{{ row.void }}</td><td><strong>{{ percent(row.hit_rate) }}</strong></td><td>{{ row.average_odds }}</td></tr></tbody>
+              </table>
+            </div>
+            <p class="measurement-note">Performance is calculated from published predictions with recorded results. Voids are excluded from the hit-rate denominator.</p>
+          </section>
         </template>
 
         <template v-else-if="section === 'packages'">
@@ -358,16 +427,43 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="section === 'payments'">
+          <section class="owner-kpis payment-report-kpis" aria-label="Filtered payment report">
+            <article><div class="owner-kpi-heading"><span>Attempts</span><i><PhCreditCard :size="20" /></i></div><strong>{{ paymentReport.summary?.attempts || 0 }}</strong><small>{{ percent(paymentReport.summary?.success_rate) }} confirmed</small></article>
+            <article><div class="owner-kpi-heading"><span>Gross revenue</span><i><PhMoneyWavy :size="20" /></i></div><strong>{{ money(paymentReport.summary?.gross_revenue) }}</strong><small>UGX confirmed</small></article>
+            <article><div class="owner-kpi-heading"><span>Provider fees</span><i><PhReceipt :size="20" /></i></div><strong>{{ money(paymentReport.summary?.provider_fees) }}</strong><small>UGX reported by Relworx</small></article>
+            <article><div class="owner-kpi-heading"><span>Needs review</span><i><PhWarningCircle :size="20" /></i></div><strong>{{ paymentReport.summary?.needs_review || 0 }}</strong><small>{{ paymentAlerts.length }} open alerts</small></article>
+          </section>
+
+          <section v-if="paymentAlerts.length" class="owner-panel payment-alert-panel">
+            <div class="panel-heading"><div><p>Payment alerts</p><h2>Operations needing attention</h2></div><PhWarningCircle :size="24" /></div>
+            <div class="payment-alert-list">
+              <article v-for="alert in paymentAlerts" :key="alert.id">
+                <span :class="['alert-severity', alert.severity]">{{ alert.severity }}</span>
+                <div><strong>{{ alert.title }}</strong><p>{{ alert.message }}</p><small>{{ formatDate(alert.created_at) }}</small></div>
+                <button type="button" class="owner-secondary-button" @click="resolveAlert(alert)">Resolve</button>
+              </article>
+            </div>
+          </section>
+
           <section class="owner-panel">
-            <div class="panel-heading"><div><p>Payments</p><h2>{{ payments.length }} transactions</h2></div><span>{{ metrics.pending_payments }} pending</span></div>
+            <div class="panel-heading"><div><p>Payments</p><h2>{{ payments.length }} transactions</h2></div><a :href="paymentExportUrl" class="owner-secondary-button"><PhDownloadSimple :size="17" /> Export CSV</a></div>
+            <form class="payment-filters" @submit.prevent="loadPaymentOperations">
+              <label><span>Search</span><input v-model.trim="paymentFilters.search" placeholder="Reference, phone or package"></label>
+              <label><span>Status</span><select v-model="paymentFilters.status"><option value="">All statuses</option><option v-for="value in ['created','submitted','pending','paid','failed','expired','cancelled','needs_review']" :key="value" :value="value">{{ value.replace('_', ' ') }}</option></select></label>
+              <label><span>Failure</span><select v-model="paymentFilters.failure_category"><option value="">All failures</option><option v-for="value in ['customer','provider','system','validation']" :key="value" :value="value">{{ value }}</option></select></label>
+              <label><span>From</span><input v-model="paymentFilters.from" type="date"></label>
+              <label><span>To</span><input v-model="paymentFilters.to" type="date"></label>
+              <button type="submit" class="owner-primary-button">Apply filters</button>
+            </form>
             <div v-if="!payments.length" class="empty-row">No payments recorded.</div>
             <div v-else class="table-wrap">
               <table class="payment-table">
-                <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Provider reference</th></tr></thead>
+                <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Provider reference</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="payment in payments" :key="payment.id">
                     <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.package.name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
                     <td><code>{{ payment.internal_reference || 'Awaiting Relworx' }}</code></td>
+                    <td><button type="button" class="icon-button" title="View transaction" @click="openPayment(payment)"><PhEye :size="17" /></button></td>
                   </tr>
                 </tbody>
               </table>
@@ -403,6 +499,29 @@ onMounted(loadAll)
         <button type="button" class="icon-button" aria-label="Close confirmation" @click="confirmation=null"><PhX :size="18" /></button>
         <p>Confirm removal</p><h2 id="confirm-title">Remove {{ confirmation.label }}?</h2><span>It will disappear from the dashboard. Required account and payment history stays protected.</span>
         <div><button type="button" class="owner-secondary-button" @click="confirmation=null">Keep it</button><button type="button" class="owner-danger-button" @click="confirmDelete">Remove</button></div>
+      </div>
+    </div>
+
+    <div v-if="selectedPayment" class="confirm-layer payment-detail-layer" role="dialog" aria-modal="true" aria-labelledby="payment-detail-title">
+      <div class="confirm-box payment-detail-box">
+        <button type="button" class="icon-button" aria-label="Close transaction detail" @click="selectedPayment=null"><PhX :size="18" /></button>
+        <p>Transaction detail</p><h2 id="payment-detail-title">{{ selectedPayment.reference }}</h2>
+        <div class="payment-detail-grid">
+          <div><span>Status</span><strong><i :class="['status-chip', selectedPayment.status]">{{ selectedPayment.status }}</i></strong></div>
+          <div><span>Customer</span><strong>{{ selectedPayment.user.full_name }}</strong><small>{{ selectedPayment.user.phone }}</small></div>
+          <div><span>Package</span><strong>{{ selectedPayment.package.name }}</strong></div>
+          <div><span>Amount</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.amount) }}</strong></div>
+          <div><span>Relworx reference</span><code>{{ selectedPayment.internal_reference || 'Not assigned' }}</code></div>
+          <div><span>Provider transaction</span><code>{{ selectedPayment.provider_transaction_id || 'Not supplied' }}</code></div>
+          <div><span>Provider / fee</span><strong>{{ selectedPayment.provider }} · {{ selectedPayment.currency }} {{ money(selectedPayment.provider_charge) }}</strong></div>
+          <div><span>Checks</span><strong>{{ selectedPayment.check_attempts }}</strong><small>Last {{ formatDate(selectedPayment.last_checked_at) }}</small></div>
+        </div>
+        <div v-if="selectedPayment.failure_reason" class="payment-failure-detail"><strong>{{ selectedPayment.failure_category || 'Payment' }} failure</strong><p>{{ selectedPayment.failure_reason }}</p></div>
+        <section class="payment-timeline">
+          <h3>Transaction timeline</h3>
+          <ol><li v-for="event in selectedPayment.events" :key="event.id"><i></i><div><strong>{{ event.event_type.replaceAll('.', ' ') }}</strong><p>{{ event.message || event.status }}</p><small>{{ formatDate(event.created_at) }} · {{ event.source }}</small></div></li></ol>
+        </section>
+        <div class="payment-detail-actions"><a v-if="selectedPayment.receipt_url" :href="selectedPayment.receipt_url" target="_blank" rel="noopener" class="owner-primary-button"><PhReceipt :size="17" /> Open receipt</a><button type="button" class="owner-secondary-button" @click="selectedPayment=null">Close</button></div>
       </div>
     </div>
   </div>

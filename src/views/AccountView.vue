@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { PhArrowRight, PhCalendar, PhClock, PhUserCircle } from '@phosphor-icons/vue'
+import { PhArrowRight, PhCalendar, PhClock, PhReceipt, PhUserCircle } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import StatePanel from '../components/StatePanel.vue'
@@ -31,7 +31,7 @@ onMounted(load)
         <article v-for="purchase in purchases" :key="purchase.id" class="grid gap-5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-5 md:grid-cols-[1fr_auto_auto] md:items-center">
           <div><span :class="['inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em]', purchase.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-[var(--app-surface-2)] text-[var(--app-muted)]']">{{ purchase.status }}</span><h3 class="mt-3 text-xl font-bold">{{ purchase.package.name }}</h3><p class="mt-1 text-sm text-[var(--app-muted)]">{{ purchase.is_paid ? 'Payment verified and access unlocked.' : 'Complete mobile-money payment to unlock this package.' }}</p></div>
           <dl class="grid grid-cols-2 gap-5 text-sm"><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhCalendar :size="15" /> Initiated</dt><dd class="mt-1 font-semibold">{{ new Date(purchase.initiated_at).toLocaleDateString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhClock :size="15" /> Paid</dt><dd class="mt-1 font-semibold">{{ purchase.paid_at ? new Date(purchase.paid_at).toLocaleString('en-UG') : 'Not yet' }}</dd></div></dl>
-          <a v-if="purchase.is_paid" :href="purchase.betslip_link" target="_blank" rel="noopener" class="justify-self-start rounded-xl bg-[var(--app-accent)] px-3 py-2 text-sm font-bold text-[var(--app-accent-ink)] md:justify-self-end">Open betslip</a>
+          <div v-if="purchase.is_paid" class="flex flex-wrap gap-2 md:justify-end"><a :href="purchase.betslip_link" target="_blank" rel="noopener" class="rounded-xl bg-[var(--app-accent)] px-3 py-2 text-sm font-bold text-[var(--app-accent-ink)]">Open betslip</a><a v-if="purchase.latest_payment?.receipt_url" :href="purchase.latest_payment.receipt_url" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-line)] px-3 py-2 text-sm font-bold"><PhReceipt :size="16" /> Receipt</a></div>
         </article>
       </div>
     </section>

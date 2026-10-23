@@ -106,6 +106,16 @@ python manage.py createsuperuser
 
 Do not run `seed_demo` in production. Restart the app from **Setup Python App**.
 
+Add one cPanel cron job for server-side payment reconciliation. Replace the
+paths with the exact application and virtual-environment paths shown by cPanel:
+
+```cron
+*/5 * * * * /home/CPANEL_USER/virtualenv/bk_app/3.12/bin/python /home/CPANEL_USER/bk_app/manage.py reconcile_payments --batch-size 100 --max-attempts 12 --max-age-hours 24 >> /home/CPANEL_USER/bk_app/reconcile-payments.log 2>&1
+```
+
+The command processes only payments whose next check is due and locks each
+payment before applying a provider result.
+
 ## 5. Verify
 
 After Namecheap SSL is active, check:

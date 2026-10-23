@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { PhArrowRight, PhCalendar, PhCheckCircle, PhClock, PhLockKey, PhMoneyWavy, PhSignOut, PhUserCircle, PhX } from '@phosphor-icons/vue'
+import { PhArrowRight, PhCalendar, PhCheckCircle, PhClock, PhLockKey, PhMoneyWavy, PhReceipt, PhSignOut, PhUserCircle, PhX } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
@@ -182,6 +182,7 @@ onBeforeUnmount(() => {
             <p class="mt-2 text-sm leading-6 text-white/60">Your package was unlocked automatically.</p>
             <div class="mt-5 border-t border-white/10 pt-4"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-xl font-black tracking-wider text-[var(--app-accent)]">{{ paidPurchase.code }}</code></div>
             <a :href="paidPurchase.betslip_link" target="_blank" rel="noopener" class="mt-5 flex min-h-12 items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></a>
+            <a v-if="payment?.receipt_url" :href="payment.receipt_url" target="_blank" rel="noopener" class="mt-3 flex min-h-11 items-center justify-center gap-2 border border-white/15 px-5 text-sm font-bold text-white/70"><PhReceipt :size="17" /> View receipt</a>
           </div>
 
           <div v-else-if="paymentPending" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5 text-center">
