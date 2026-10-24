@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import {
   PhArrowClockwise,
   PhChartLineUp,
@@ -11,6 +11,7 @@ import {
   PhHourglassMedium,
   PhMoneyWavy,
   PhPackage,
+  PhPencilSimple,
   PhPlus,
   PhReceipt,
   PhSignOut,
@@ -43,6 +44,9 @@ const paymentFilters = reactive({ search: '', status: '', failure_category: '', 
 const wins = ref([])
 const customers = ref([])
 const packageFile = ref(null)
+const editingPackageId = ref(null)
+const packageEditor = ref(null)
+const packageNameInput = ref(null)
 const winFile = ref(null)
 const confirmation = ref(null)
 
@@ -73,6 +77,7 @@ const emptyPackage = () => ({
   is_active: true,
 })
 const packageForm = reactive(emptyPackage())
+const isEditingPackage = computed(() => editingPackageId.value !== null)
 const winForm = reactive({ caption: '' })
 const money = (value) => new Intl.NumberFormat('en-UG').format(value || 0)
 const percent = (value) => `${Number(value || 0).toFixed(1)}%`
@@ -80,6 +85,12 @@ const formatDate = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : 'Not set'
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const toDatetimeLocal = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60_000))
+  return localDate.toISOString().slice(0, 16)
+}
 
 function paymentQuery() {
   const query = new URLSearchParams()
@@ -147,9 +158,35 @@ function flash(text) {
   setTimeout(() => { notice.value = '' }, 3500)
 }
 
-async function createPackage() {
+function resetPackageForm() {
+  editingPackageId.value = null
+  Object.assign(packageForm, emptyPackage())
+  packageFile.value = null
+}
+
+async function editPackage(plan) {
+  editingPackageId.value = plan.id
+  Object.assign(packageForm, {
+    name: plan.name,
+    package_type: plan.package_type,
+    price: plan.price,
+    currency: plan.currency || 'UGX',
+    win_probability: plan.win_probability,
+    closes_at: toDatetimeLocal(plan.closes_at),
+    betslip_link: plan.betslip_link,
+    code: plan.code,
+    is_active: plan.is_active,
+  })
+  packageFile.value = null
   error.value = ''
-  if (!packageFile.value) {
+  await nextTick()
+  packageEditor.value?.scrollIntoView({ block: 'start' })
+  packageNameInput.value?.focus({ preventScroll: true })
+}
+
+async function savePackage() {
+  error.value = ''
+  if (!isEditingPackage.value && !packageFile.value) {
     error.value = 'Add a package photo before saving.'
     return
   }
@@ -161,11 +198,14 @@ async function createPackage() {
       data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
     })
     data.append('slug', slugify(packageForm.name))
-    data.append('image', packageFile.value)
-    await api('/v1/owner/packages/', { method: 'POST', body: data })
-    Object.assign(packageForm, emptyPackage())
-    packageFile.value = null
-    flash('Package saved.')
+    if (packageFile.value) data.append('image', packageFile.value)
+    const path = isEditingPackage.value
+      ? `/v1/owner/packages/${editingPackageId.value}/`
+      : '/v1/owner/packages/'
+    await api(path, { method: isEditingPackage.value ? 'PATCH' : 'POST', body: data })
+    const message = isEditingPackage.value ? 'Package updated.' : 'Package saved.'
+    resetPackageForm()
+    flash(message)
     await loadAll()
   } catch (caught) {
     error.value = caught.message
@@ -339,13 +379,16 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="section === 'packages'">
-          <section class="owner-panel owner-editor-panel">
-            <div class="panel-heading"><div><p>New package</p><h2>Add a betslip</h2></div><PhPlus :size="22" /></div>
-            <form class="owner-form package-entry-form" @submit.prevent="createPackage">
+          <section ref="packageEditor" class="owner-panel owner-editor-panel">
+            <div class="panel-heading">
+              <div><p>{{ isEditingPackage ? 'Editing package' : 'New package' }}</p><h2>{{ isEditingPackage ? 'Update betslip' : 'Add a betslip' }}</h2></div>
+              <PhPencilSimple v-if="isEditingPackage" :size="22" /><PhPlus v-else :size="22" />
+            </div>
+            <form class="owner-form package-entry-form" @submit.prevent="savePackage">
               <div class="owner-editor-grid">
                 <div class="owner-form-fields">
                   <div class="field-pair">
-                    <label><span>Package name</span><input v-model.trim="packageForm.name" required placeholder="Weekend accumulator"></label>
+                    <label><span>Package name</span><input ref="packageNameInput" v-model.trim="packageForm.name" required placeholder="Weekend accumulator"></label>
                     <label><span>Type</span><input v-model.trim="packageForm.package_type" required placeholder="Accumulator"></label>
                   </div>
                   <div class="field-pair">
@@ -363,14 +406,17 @@ onMounted(loadAll)
                   id="package-photo"
                   v-model="packageFile"
                   label="Package photo"
-                  help="One JPG, PNG or WebP image. This appears on the public package card."
+                  :help="isEditingPackage ? 'Choose a new image only if you want to replace the current photo.' : 'One JPG, PNG or WebP image. This appears on the public package card.'"
                   :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
                 />
               </div>
 
               <div class="package-form-footer">
                 <label class="admin-toggle"><input v-model="packageForm.is_active" type="checkbox"><span></span><b>Active and visible</b></label>
-                <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : 'Save package' }}</button>
+                <div class="package-form-actions">
+                  <button v-if="isEditingPackage" type="button" class="owner-secondary-button" :disabled="saving" @click="resetPackageForm">Cancel</button>
+                  <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : isEditingPackage ? 'Update package' : 'Save package' }}</button>
+                </div>
               </div>
             </form>
           </section>
@@ -382,12 +428,17 @@ onMounted(loadAll)
               <table class="package-admin-table">
                 <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                  <tr v-for="plan in packages" :key="plan.id">
+                  <tr v-for="plan in packages" :key="plan.id" :class="{ 'is-editing': editingPackageId === plan.id }">
                     <td><div class="package-table-photo" :style="plan.image_url ? { backgroundImage: `url(${plan.image_url})` } : {}"><PhPackage v-if="!plan.image_url" :size="18" /></div></td>
                     <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
                     <td><label class="admin-toggle compact" :title="plan.is_active ? 'Deactivate package' : 'Activate package'"><input :checked="plan.is_active" type="checkbox" @change="togglePackage(plan, 'is_active')"><span></span><b>{{ plan.is_active ? 'ON' : 'OFF' }}</b></label></td>
                     <td><a :href="plan.betslip_link" target="_blank" rel="noopener">Open link</a></td><td><code>{{ plan.code }}</code></td>
-                    <td><button type="button" class="icon-button danger" title="Delete package" @click="requestDelete(plan.name, `/v1/owner/packages/${plan.id}/`)"><PhTrash :size="17" /></button></td>
+                    <td>
+                      <div class="package-row-actions">
+                        <button type="button" class="package-edit-button" :aria-label="`Edit ${plan.name}`" @click="editPackage(plan)"><PhPencilSimple :size="16" /> Edit</button>
+                        <button type="button" class="icon-button danger" :aria-label="`Delete ${plan.name}`" title="Delete package" @click="requestDelete(plan.name, `/v1/owner/packages/${plan.id}/`)"><PhTrash :size="17" /></button>
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
               </table>

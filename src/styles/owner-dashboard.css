@@ -393,6 +393,13 @@
   border-top: 1px solid var(--owner-line);
 }
 
+.package-form-actions,
+.package-row-actions {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+
 .admin-toggle {
   position: relative;
   display: inline-flex;
@@ -489,6 +496,28 @@
 .package-admin-table { min-width: 70rem; }
 .payment-table { min-width: 57rem; }
 .package-admin-table a { color: #111; font-weight: 800; text-decoration: underline; text-underline-offset: .2rem; }
+.package-admin-table tr.is-editing td { background: #f4f4f1; }
+
+.package-edit-button {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .6rem .75rem;
+  border: 1px solid #111;
+  border-radius: .6rem;
+  background: #fff;
+  color: #111;
+  font-size: .68rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, transform .2s ease;
+}
+
+.package-edit-button:hover { background: #111; color: #fff; }
+.package-edit-button:active { transform: scale(.98); }
+.package-edit-button:focus-visible { outline: 3px solid rgb(17 17 17 / .16); outline-offset: 2px; }
 
 .package-table-photo {
   width: 3.25rem;
@@ -733,6 +762,8 @@
   .owner-panel { padding: 1rem; }
   .field-pair { grid-template-columns: 1fr; }
   .package-form-footer { align-items: stretch; flex-direction: column; }
+  .package-form-actions { width: 100%; }
+  .package-form-actions > * { flex: 1; }
   .payment-filters { grid-template-columns: 1fr; }
   .report-kpis { grid-template-columns: 1fr; }
   .payment-alert-list article { grid-template-columns: 1fr; }
