@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const ready = ref(false)
   const isAuthenticated = computed(() => Boolean(user.value))
   const isOwner = computed(() => Boolean(user.value?.is_owner))
+  const isDeveloper = computed(() => Boolean(user.value?.is_developer))
   async function initialize(force = false) {
     if (ready.value && !force) return user.value
     try { user.value = await api('/v1/auth/me/') }
@@ -20,5 +21,5 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(details) { user.value = await api('/v1/auth/register/', { method: 'POST', body: JSON.stringify(details) }); ready.value = true; return user.value }
   async function endSession() { try { await api('/v1/auth/logout/', { method: 'POST' }) } finally { user.value = null; ready.value = true } }
   async function logout() { await endSession(); router.push('/') }
-  return { user, ready, isAuthenticated, isOwner, initialize, login, adminLogin, register, endSession, logout }
+  return { user, ready, isAuthenticated, isOwner, isDeveloper, initialize, login, adminLogin, register, endSession, logout }
 })

@@ -173,7 +173,8 @@ onBeforeUnmount(() => {
         <template v-else-if="isPayment">
           <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhMoneyWavy :size="27" weight="duotone" /></span>
           <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Secure mobile money</p>
-          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">Pay {{ props.plan?.currency }} {{ Number(props.plan?.price || 0).toLocaleString('en-UG') }}</h2>
+          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">Pay {{ props.plan?.currency }} {{ Number(props.plan?.payment_total || props.plan?.price || 0).toLocaleString('en-UG') }}</h2>
+          <p v-if="Number(props.plan?.payment_fee || 0)" class="mt-2 text-sm text-white/45">Package {{ props.plan?.currency }} {{ Number(props.plan?.price || 0).toLocaleString('en-UG') }} plus estimated Relworx fee {{ props.plan?.currency }} {{ Number(props.plan?.payment_fee || 0).toLocaleString('en-UG') }}.</p>
           <p class="mt-3 text-white/50">{{ props.plan?.name }} · MTN MoMo or Airtel Money</p>
 
           <div v-if="paidPurchase" class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-5">

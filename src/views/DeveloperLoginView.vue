@@ -1,0 +1,10 @@
+<script setup>
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import BrandMark from '../components/BrandMark.vue'
+import { useAuthStore } from '../stores/auth'
+const auth=useAuthStore(); const router=useRouter(); const form=reactive({phone:'',password:''}); const loading=ref(false); const error=ref('')
+async function submit(){error.value='';loading.value=true;try{const user=await auth.adminLogin(form);if(!user.is_developer){await auth.endSession();throw new Error('Developer access is required.')}await router.replace('/developer/dashboard')}catch(caught){error.value=caught.message}finally{loading.value=false}}
+</script>
+<template><main class="dev-login"><form @submit.prevent="submit"><BrandMark /><p>Restricted developer access</p><h1>Developer console</h1><label>Phone number<input v-model.trim="form.phone" required autocomplete="username"></label><label>Password<input v-model="form.password" required type="password" autocomplete="current-password"></label><p v-if="error" class="error" role="alert">{{ error }}</p><button :disabled="loading">{{ loading ? 'Verifying...' : 'Enter developer dashboard' }}</button><RouterLink to="/">Back to website</RouterLink></form></main></template>
+<style scoped>.dev-login{min-height:100dvh;display:grid;place-items:center;padding:1.5rem;background:#080b09;color:#fff}.dev-login form{width:min(100%,28rem);display:grid;gap:1rem;padding:2rem;border:1px solid #252a27;background:#101411}.dev-login p{margin:1rem 0 0;color:#c7ff45;font-size:.7rem;font-weight:800;text-transform:uppercase}.dev-login h1{margin:0 0 1rem;font-size:2.5rem;letter-spacing:-.06em}.dev-login label{display:grid;gap:.45rem;font-size:.72rem;font-weight:800;text-transform:uppercase}.dev-login input{min-height:3.2rem;padding:.8rem;border:1px solid #343a36;background:#090c0a;color:#fff;font:inherit}.dev-login button{min-height:3.2rem;border:0;background:#c7ff45;color:#07110d;font-weight:900;cursor:pointer}.dev-login a{color:#aaa;text-align:center}.dev-login .error{margin:0;padding:.7rem;background:#3b1717;color:#ffc0bc;text-transform:none}</style>

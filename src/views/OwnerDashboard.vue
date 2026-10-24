@@ -18,11 +18,13 @@ import {
   PhTrash,
   PhTrophy,
   PhUsersThree,
+  PhWallet,
   PhWarningCircle,
   PhX,
 } from '@phosphor-icons/vue'
 import '@fontsource-variable/plus-jakarta-sans'
 import AdminMediaUploader from '../components/AdminMediaUploader.vue'
+import WalletPanel from '../components/WalletPanel.vue'
 import BrandMark from '../components/BrandMark.vue'
 import { API_ROOT, api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
@@ -55,6 +57,7 @@ const sections = [
   { id: 'packages', label: 'Packages', note: 'Betslip catalogue', icon: PhPackage },
   { id: 'recent-wins', label: 'Recent wins', note: 'Photos and captions', icon: PhTrophy },
   { id: 'payments', label: 'Payments', note: 'Track transactions', icon: PhCreditCard },
+  { id: 'wallet', label: 'Wallet', note: 'Balances and payouts', icon: PhWallet },
   { id: 'members', label: 'Members', note: 'Audience controls', icon: PhUsersThree },
 ]
 
@@ -446,6 +449,10 @@ onMounted(loadAll)
           </section>
         </template>
 
+        <template v-else-if="section === 'wallet'">
+          <WalletPanel endpoint="/v1/owner" title="Owner wallet and payouts" />
+        </template>
+
         <template v-else-if="section === 'recent-wins'">
           <div class="owner-split">
             <section class="owner-panel form-panel">
@@ -562,6 +569,10 @@ onMounted(loadAll)
           <div><span>Customer</span><strong>{{ selectedPayment.user.full_name }}</strong><small>{{ selectedPayment.user.phone }}</small></div>
           <div><span>Package</span><strong>{{ selectedPayment.package.name }}</strong></div>
           <div><span>Amount</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.amount) }}</strong></div>
+          <div><span>Package price</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.base_amount || selectedPayment.amount) }}</strong></div>
+          <div><span>Estimated provider fee</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.provider_fee_estimate) }}</strong></div>
+          <div><span>Provider net</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.provider_net_amount) }}</strong></div>
+          <div><span>Developer commission</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.developer_commission) }}</strong></div>
           <div><span>Relworx reference</span><code>{{ selectedPayment.internal_reference || 'Not assigned' }}</code></div>
           <div><span>Provider transaction</span><code>{{ selectedPayment.provider_transaction_id || 'Not supplied' }}</code></div>
           <div><span>Provider / fee</span><strong>{{ selectedPayment.provider }} · {{ selectedPayment.currency }} {{ money(selectedPayment.provider_charge) }}</strong></div>
