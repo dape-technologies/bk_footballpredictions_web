@@ -16,8 +16,14 @@ export const useAuthStore = defineStore('auth', () => {
     finally { ready.value = true }
     return user.value
   }
-  async function login(credentials) { user.value = await api('/v1/auth/login/', { method: 'POST', body: JSON.stringify(credentials) }); ready.value = true; return user.value }
-  async function adminLogin(credentials) { user.value = await api('/v1/auth/admin-login/', { method: 'POST', body: JSON.stringify(credentials) }); ready.value = true; return user.value }
+  async function authenticate(path, credentials) {
+    const result = await api(path, { method: 'POST', body: JSON.stringify(credentials) })
+    if (!result?.otp_required) user.value = result
+    ready.value = true
+    return result
+  }
+  async function login(credentials) { return authenticate('/v1/auth/login/', credentials) }
+  async function adminLogin(credentials) { return authenticate('/v1/auth/admin-login/', credentials) }
   async function register(details) { user.value = await api('/v1/auth/register/', { method: 'POST', body: JSON.stringify(details) }); ready.value = true; return user.value }
   async function endSession() { try { await api('/v1/auth/logout/', { method: 'POST' }) } finally { user.value = null; ready.value = true } }
   async function logout() { await endSession(); router.push('/') }

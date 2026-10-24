@@ -75,7 +75,7 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
   await page.getByLabel('Phone number').fill('0702000001')
   await page.getByLabel('Password').fill('member-pass-27')
-  await page.getByRole('dialog', { name: 'Sign in' }).getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Sign in' }).getByRole('button', { name: 'Continue securely', exact: true }).click()
 
   await page.getByRole('button', { name: 'Buy slip' }).click()
   await expect(page.getByRole('heading', { name: 'Pay UGX 10,000' })).toBeVisible()

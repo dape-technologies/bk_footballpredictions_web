@@ -8,9 +8,11 @@ import { useAuthStore } from '../stores/auth'
 const props = defineProps({ mode: String })
 const auth = useAuthStore()
 const router = useRouter()
-const form = reactive({ first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '' })
+const form = reactive({ first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '', otp: '' })
 const loading = ref(false)
 const error = ref('')
+const notice = ref('')
+const challengeToken = ref('')
 const registering = computed(() => props.mode === 'register')
 const maximumBirthDate = (() => {
   const date = new Date()
@@ -20,7 +22,9 @@ const maximumBirthDate = (() => {
   return `${date.getFullYear()}-${month}-${day}`
 })()
 
-watch(() => props.mode, () => { error.value = '' })
+watch(() => props.mode, () => { error.value = ''; notice.value = ''; challengeToken.value = ''; form.otp = '' })
+
+function restartLogin() { challengeToken.value = ''; form.otp = ''; notice.value = ''; error.value = '' }
 
 async function submit() {
   error.value = ''
@@ -30,12 +34,15 @@ async function submit() {
   }
   loading.value = true
   try {
-    const payload = registering.value
+    const payload = challengeToken.value
+      ? { challenge_token: challengeToken.value, otp: form.otp }
+      : registering.value
       ? { first_name: form.first_name, surname: form.surname, date_of_birth: form.date_of_birth, phone: form.phone, password: form.password, password_confirm: form.password_confirm }
       : { phone: form.phone, password: form.password }
-    const user = registering.value ? await auth.register(payload) : await auth.login(payload)
-    await router.push(user.is_owner ? '/owner/dashboard' : '/')
-    if (!user.is_owner) window.scrollTo({ top: 0, behavior: 'smooth' })
+    const result = registering.value ? await auth.register(payload) : await auth.login(payload)
+    if (result.otp_required) { challengeToken.value = result.challenge_token; notice.value = result.message; form.otp = ''; return }
+    await router.push(result.is_owner ? '/owner/dashboard' : result.is_developer ? '/developer/dashboard' : '/')
+    if (!result.is_owner && !result.is_developer) window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) { error.value = err.message }
   finally { loading.value = false }
 }
@@ -53,8 +60,9 @@ async function submit() {
       <div class="m-auto w-full max-w-md py-12">
         <p class="text-sm font-semibold text-[var(--app-accent)]">Member access</p>
         <h2 class="mt-3 text-4xl font-black tracking-[-.055em]">{{ registering ? 'Create your account' : 'Welcome back' }}</h2>
-        <p class="mt-3 text-[var(--app-muted)]">{{ registering ? 'Use your name and active phone number.' : 'Enter the details linked to your membership.' }}</p>
+        <p class="mt-3 text-[var(--app-muted)]">{{ challengeToken ? 'Enter the six-digit code sent to the account security contacts.' : registering ? 'Use your name and active phone number.' : 'Enter the details linked to your membership.' }}</p>
         <form class="mt-8 grid gap-5" @submit.prevent="submit">
+          <template v-if="!challengeToken">
           <div v-if="registering" class="grid gap-4 sm:grid-cols-2">
             <label class="grid gap-2 text-sm font-semibold">First name<input v-model.trim="form.first_name" required autocomplete="given-name" placeholder="First name" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
             <label class="grid gap-2 text-sm font-semibold">Surname<input v-model.trim="form.surname" required autocomplete="family-name" placeholder="Surname" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
@@ -63,10 +71,16 @@ async function submit() {
           <label class="grid gap-2 text-sm font-semibold">Phone number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
           <label class="grid gap-2 text-sm font-semibold">Password<input v-model="form.password" required minlength="4" type="password" :autocomplete="registering ? 'new-password' : 'current-password'" :placeholder="registering ? 'Minimum 4 characters' : 'Your password'" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
           <label v-if="registering" class="grid gap-2 text-sm font-semibold">Confirm password<input v-model="form.password_confirm" required minlength="4" type="password" autocomplete="new-password" placeholder="Enter the password again" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
+          </template>
+          <template v-else>
+            <label class="grid gap-2 text-sm font-semibold">Login verification code<input v-model.trim="form.otp" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" class="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3.5 text-center font-mono text-xl font-bold tracking-[.22em] text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)]"></label>
+            <p v-if="notice" role="status" class="rounded-xl border border-[var(--app-accent)]/25 bg-[var(--app-accent)]/10 p-3 text-sm text-[var(--app-text)]">{{ notice }}</p>
+          </template>
           <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
-          <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-bold text-[var(--app-accent-ink)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Please wait...' : registering ? 'Create account' : 'Sign in' }} <PhArrowRight :size="18" /></button>
+          <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-bold text-[var(--app-accent-ink)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Please wait...' : challengeToken ? 'Verify and sign in' : registering ? 'Create account' : 'Continue securely' }} <PhArrowRight :size="18" /></button>
+          <button v-if="challengeToken" type="button" class="min-h-11 rounded-xl border border-[var(--app-line)] font-bold text-[var(--app-muted)]" @click="restartLogin">Use password again</button>
         </form>
-        <p class="mt-6 text-sm text-[var(--app-muted)]">{{ registering ? 'Already registered?' : 'New to BK?' }} <RouterLink :to="registering ? '/login' : '/register'" class="font-bold text-[var(--app-text)] underline decoration-[var(--app-accent)] underline-offset-4">{{ registering ? 'Sign in' : 'Create account' }}</RouterLink></p>
+        <p v-if="!challengeToken" class="mt-6 text-sm text-[var(--app-muted)]">{{ registering ? 'Already registered?' : 'New to BK?' }} <RouterLink :to="registering ? '/login' : '/register'" class="font-bold text-[var(--app-text)] underline decoration-[var(--app-accent)] underline-offset-4">{{ registering ? 'Sign in' : 'Create account' }}</RouterLink></p>
       </div>
     </section>
   </div>
