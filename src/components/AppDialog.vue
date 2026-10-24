@@ -20,6 +20,35 @@ const purchases = ref([])
 const freeTip = ref(null)
 const payment = ref(null)
 const paidPurchase = ref(null)
+const preferences = ref({ product_updates: false, closing_reminders: false, performance_measurement: true })
+const accountTab = ref('active')
+const accountNotices = ref([])
+const clock = ref(Date.now())
+const visiblePurchases = computed(() => purchases.value.filter((item) => accountTab.value === 'history' || (item.is_paid && new Date(item.package.closes_at).getTime() > clock.value)))
+let clockTimer
+function countdown(value) {
+  const remaining = Math.max(0, new Date(value).getTime() - clock.value)
+  if (!remaining) return 'Closed for new purchases'
+  const minutes = Math.floor(remaining / 60000)
+  return `Closes in ${Math.floor(minutes / 1440)}d ${Math.floor(minutes / 60) % 24}h ${minutes % 60}m`
+}
+async function savePreferences() {
+  try {
+    const response = await api('/v1/me/preferences/', { method: 'PATCH', body: JSON.stringify(preferences.value) })
+    accountNotices.value = response.notices || []
+    localStorage.setItem('bk-performance-measurement', String(preferences.value.performance_measurement))
+  } catch (caught) { error.value = caught.message }
+}
+async function openBetslip(item) {
+  const opened = window.open('about:blank', '_blank')
+  if (opened) opened.opener = null
+  try {
+    const response = await api(`/v1/me/purchases/${item.id}/access/`, { method: 'POST', body: '{}' })
+    if (opened) opened.location.replace(response.url)
+    else location.assign(response.url)
+    item.access_history = [new Date().toISOString(), ...(item.access_history || [])]
+  } catch (caught) { opened?.close(); error.value = caught.message }
+}
 let pollTimer = null
 const registering = computed(() => props.mode === 'register')
 const isAccount = computed(() => props.mode === 'account')
@@ -43,7 +72,12 @@ async function loadDialogData() {
   if (isAccount.value) {
     if (!auth.isAuthenticated) return emit('switch', 'login')
     loading.value = true
-    try { purchases.value = await api('/v1/me/purchases/') }
+    try {
+      purchases.value = await api('/v1/me/purchases/')
+      const response = await api('/v1/me/preferences/')
+      preferences.value = { ...preferences.value, ...response.preferences }
+      accountNotices.value = response.notices || []
+    }
     catch (err) { error.value = err.message }
     finally { loading.value = false }
   }
@@ -135,12 +169,14 @@ async function signOut() {
 watch(() => props.mode, loadDialogData)
 
 onMounted(() => {
+  clockTimer = setInterval(() => { clock.value = Date.now() }, 30000)
   document.body.style.overflow = 'hidden'
   window.addEventListener('keydown', onKeydown)
   loadDialogData()
 })
 
 onBeforeUnmount(() => {
+  clearInterval(clockTimer)
   clearTimeout(pollTimer)
   document.body.style.overflow = ''
   window.removeEventListener('keydown', onKeydown)
@@ -182,7 +218,7 @@ onBeforeUnmount(() => {
             <h3 class="mt-4 text-xl font-black">Payment confirmed</h3>
             <p class="mt-2 text-sm leading-6 text-white/60">Your package was unlocked automatically.</p>
             <div class="mt-5 border-t border-white/10 pt-4"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-xl font-black tracking-wider text-[var(--app-accent)]">{{ paidPurchase.code }}</code></div>
-            <a :href="paidPurchase.betslip_link" target="_blank" rel="noopener" class="mt-5 flex min-h-12 items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></a>
+            <button type="button" @click="openBetslip(paidPurchase)" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></button>
             <a v-if="payment?.receipt_url" :href="payment.receipt_url" target="_blank" rel="noopener" class="mt-3 flex min-h-11 items-center justify-center gap-2 border border-white/15 px-5 text-sm font-bold text-white/70"><PhReceipt :size="17" /> View receipt</a>
           </div>
 
@@ -205,19 +241,27 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else-if="isAccount">
+          <p v-for="(notice, index) in accountNotices" :key="index" class="my-3 rounded-xl bg-white/5 p-3 text-sm text-white/65">{{ notice.message }}</p>
+          <div class="my-4 flex gap-3"><button type="button" :aria-pressed="accountTab === 'active'" @click="accountTab='active'">Active packages</button><button type="button" :aria-pressed="accountTab === 'history'" @click="accountTab='history'">All purchases</button></div>
           <div class="flex min-w-0 items-center gap-3 pr-12"><span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhUserCircle :size="28" /></span><div class="min-w-0"><p class="text-xs font-bold uppercase tracking-[.16em] text-[var(--app-accent)]">Member access</p><h2 class="break-words text-xl font-black sm:text-2xl">{{ auth.user?.first_name }} {{ auth.user?.surname }}</h2></div></div>
           <p class="mt-2 text-sm text-white/45">{{ auth.user?.phone }}</p>
           <p v-if="error" class="mt-6 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ error }}</p>
           <div v-if="loading" class="mt-7 h-52 animate-pulse rounded-2xl bg-white/5"></div>
           <div v-else-if="purchases.length" class="mt-7 grid gap-3">
-            <article v-for="purchaseItem in purchases" :key="purchaseItem.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
+            <p v-if="!visiblePurchases.length" class="text-sm text-white/60">No active packages. Choose All purchases to see previous payments and access.</p>
+            <article v-for="purchaseItem in visiblePurchases" :key="purchaseItem.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
               <div class="flex min-w-0 flex-wrap items-center justify-between gap-3"><h3 class="min-w-0 break-words font-bold">{{ purchaseItem.package.name }}</h3><span :class="['shrink-0 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider', purchaseItem.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-white/7 text-white/55']">{{ purchaseItem.status }}</span></div>
               <dl class="mt-4 grid grid-cols-2 gap-4 text-xs"><div><dt class="flex items-center gap-1.5 text-white/40"><PhCalendar :size="14" /> Amount</dt><dd class="mt-1 font-semibold">{{ purchaseItem.currency_snapshot }} {{ Number(purchaseItem.price_snapshot).toLocaleString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-white/40"><PhClock :size="14" /> Purchased</dt><dd class="mt-1 font-semibold">{{ purchaseItem.paid_at ? new Date(purchaseItem.paid_at).toLocaleDateString('en-UG') : 'Awaiting payment' }}</dd></div></dl>
-              <div v-if="purchaseItem.is_paid" class="mt-4 grid gap-3 border-t border-white/10 pt-4"><div class="min-w-0"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-base font-black tracking-wider text-[var(--app-accent)]">{{ purchaseItem.code }}</code></div><a :href="purchaseItem.betslip_link" target="_blank" rel="noopener" class="flex min-h-10 items-center justify-center gap-2 bg-[var(--app-accent)] px-4 text-sm font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="16" /></a></div>
-              <button v-else type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Continue payment</button>
+              <div v-if="purchaseItem.is_paid" class="mt-4 grid gap-3 border-t border-white/10 pt-4"><div class="min-w-0"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-base font-black tracking-wider text-[var(--app-accent)]">{{ purchaseItem.code }}</code></div><button type="button" @click="openBetslip(purchaseItem)" class="flex min-h-10 items-center justify-center gap-2 bg-[var(--app-accent)] px-4 text-sm font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="16" /></button></div>
+              <p class="mt-3 text-xs text-white/55">{{ countdown(purchaseItem.package.closes_at) }} · {{ new Date(purchaseItem.package.closes_at).toLocaleString('en-UG') }}</p>
+              <details v-if="purchaseItem.access_history?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Betslip access history</summary><p v-for="(access, index) in purchaseItem.access_history" :key="index">Opened {{ new Date(access).toLocaleString('en-UG') }}</p></details>
+              <a v-if="purchaseItem.latest_payment?.receipt_url" :href="purchaseItem.latest_payment.receipt_url" target="_blank" rel="noopener" class="mt-3 block text-sm font-bold text-[var(--app-accent)]">Open receipt / save as PDF</a>
+              <details v-if="purchaseItem.payment_timeline?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Payment history</summary><ol class="grid gap-3"><li v-for="attempt in purchaseItem.payment_timeline" :key="attempt.reference"><strong>{{ attempt.reference }} · {{ attempt.status }}</strong><p>{{ new Date(attempt.created_at).toLocaleString('en-UG') }}</p><p v-if="attempt.failure_reason">{{ attempt.failure_reason }}</p></li></ol></details>
+              <button v-if="!purchaseItem.is_paid && purchaseItem.package.is_open" type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Retry payment</button>
             </article>
           </div>
           <div v-else class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-center"><PhLockKey :size="28" class="mx-auto text-[var(--app-accent)]" /><p class="mt-3 font-bold">No access requests yet</p><p class="mt-1 text-sm text-white/45">Choose a VIP pass from the page to send your first request.</p></div>
+          <fieldset class="mt-5 grid gap-3 border-t border-white/15 pt-4"><legend class="text-sm font-bold">Notification preferences</legend><label class="flex gap-3 text-sm"><input v-model="preferences.product_updates" type="checkbox" @change="savePreferences"> Product updates</label><label class="flex gap-3 text-sm"><input v-model="preferences.closing_reminders" type="checkbox" @change="savePreferences"> Package closing reminders</label><label class="flex gap-3 text-sm"><input v-model="preferences.performance_measurement" type="checkbox" @change="savePreferences"> Help measure website performance</label><small class="text-white/45">Service notifications appear in your account. Optional messages follow your preferences.</small></fieldset>
           <button type="button" class="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/55 hover:text-white" @click="signOut"><PhSignOut :size="17" /> Sign out</button>
         </template>
 

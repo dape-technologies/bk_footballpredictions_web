@@ -65,6 +65,7 @@ test('guest authentication resumes checkout and verified payment reveals the pac
     if (path === '/api/v1/me/purchases/21/payment-attempts/' && request.method() === 'POST') return json(purchase(false).latest_payment, 202)
     if (path === '/api/v1/me/payments/31/refresh/' && request.method() === 'POST') return json(purchase(true).latest_payment)
     if (path === '/api/v1/me/purchases/21/' && request.method() === 'GET') return json(purchase(true))
+    if (path === '/api/v1/me/purchases/21/access/' && request.method() === 'POST') return json({ url: 'https://example.com/slips/daily-edge' })
     return json({ detail: `Unhandled test route: ${path}` }, 404)
   })
 
@@ -83,5 +84,11 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   await expect(page.getByText('Approve the prompt on your phone')).toBeVisible()
   await expect(page.getByText('Payment confirmed')).toBeVisible({ timeout: 7000 })
   await expect(page.getByText('BK-DAY-78')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open betslip' })).toHaveAttribute('href', 'https://example.com/slips/daily-edge')
+  await page.route('https://example.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Purchased betslip</h1>' }))
+  const accessRequest = page.waitForRequest('**/api/v1/me/purchases/21/access/')
+  const popupPromise = page.waitForEvent('popup')
+  await page.getByRole('button', { name: 'Open betslip' }).click()
+  await accessRequest
+  const popup = await popupPromise
+  await expect(popup).toHaveURL('https://example.com/slips/daily-edge')
 })

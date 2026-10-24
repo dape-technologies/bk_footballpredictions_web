@@ -8,3 +8,5 @@ import './tailwind.css'
 import './styles/owner-dashboard.css'
 
 createApp(App).use(createPinia()).use(router).mount('#app')
+import { startPerformanceMonitoring } from './telemetry'
+startPerformanceMonitoring().catch(() => {})

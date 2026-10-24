@@ -1,9 +1,5 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { gsap } from 'gsap'
-import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin'
-
-gsap.registerPlugin(MorphSVGPlugin)
 
 const topLine = {
   width: 6973,
@@ -40,6 +36,7 @@ const bottomLine = {
 
 const wordmark = ref(null)
 let mediaContext
+let destroyed = false
 
 function shapeFor(letter, index) {
   const width = Math.max(letter.advance - 52, 250)
@@ -55,10 +52,14 @@ function shapeFor(letter, index) {
   return `M${left} 86L${right - 70} 86L${right} 220L${right - 140} 356L${right} 492L${right - 70} 626L${left} 626L${left + 112} 356Z`
 }
 
-onMounted(() => {
+onMounted(async () => {
+  if (!matchMedia('(min-width: 768px) and (prefers-reduced-motion: no-preference)').matches) return
+  const [{ gsap }, { MorphSVGPlugin }] = await Promise.all([import('gsap'), import('gsap/MorphSVGPlugin')])
+  if (destroyed) return
+  gsap.registerPlugin(MorphSVGPlugin)
   mediaContext = gsap.matchMedia()
 
-  mediaContext.add('(prefers-reduced-motion: no-preference)', () => {
+  mediaContext.add('(min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
     const context = gsap.context(() => {
       const letters = gsap.utils.toArray('.morph-letter')
 
@@ -98,7 +99,7 @@ onMounted(() => {
   })
 })
 
-onBeforeUnmount(() => mediaContext?.revert())
+onBeforeUnmount(() => { destroyed = true; mediaContext?.revert() })
 </script>
 
 <template>

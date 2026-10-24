@@ -10,7 +10,7 @@ import { useAuthStore } from './stores/auth'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const isOwnerArea = computed(() => route.path.startsWith('/owner'))
+const isOwnerArea = computed(() => route.path.startsWith('/owner') || route.path.startsWith('/developer'))
 const showPublicShell = computed(() => !isOwnerArea.value)
 const deferredInstall = ref(null)
 const canInstall = ref(false)
@@ -137,7 +137,8 @@ onBeforeUnmount(() => {
                 <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--app-accent)] font-black text-[var(--app-accent-ink)]">{{ auth.user?.first_name?.charAt(0) }}</span>
                 <div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Signed in as</p><strong class="block truncate text-lg">{{ auth.user?.first_name }} {{ auth.user?.surname }}</strong></div>
               </header>
-              <div class="p-4">
+              <div v-if="auth.isOwner || auth.isDeveloper" class="p-4"><button type="button" class="min-h-11 w-full rounded-lg bg-[var(--app-accent)] px-4 font-bold text-black" @click="profileOpen=false; router.push(auth.isOwner ? '/owner/dashboard' : '/developer/dashboard')">Open {{ auth.isOwner ? 'owner workspace' : 'developer console' }}</button></div>
+              <div v-else class="p-4">
                 <div class="flex items-center justify-between"><p class="text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Purchased packages</p><PhCrown :size="18" class="text-[var(--app-accent)]" weight="duotone" /></div>
                 <p v-if="profileLoading" class="mt-3 animate-pulse text-sm text-white/45">Checking your access…</p>
                 <p v-else-if="profileError" class="mt-3 text-sm text-red-300">{{ profileError }}</p>
@@ -165,7 +166,7 @@ onBeforeUnmount(() => {
     </button>
 
     <nav v-if="showPublicShell" class="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--app-line)] bg-[#080d0a]/96 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="App navigation">
-      <div :class="['mx-auto grid h-[4.75rem] max-w-lg', auth.isAuthenticated ? 'grid-cols-3' : 'grid-cols-4']">
+      <div class="mx-auto grid h-[4.75rem] max-w-lg grid-cols-4">
         <button v-for="item in navigation" :key="item.id" type="button" class="flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-[var(--app-muted)] hover:text-[var(--app-accent)]" @click="scrollToSection(item.id)">
           <component :is="item.icon" :size="22" weight="duotone" />
           <span class="max-w-full truncate">{{ item.label }}</span>
@@ -174,6 +175,7 @@ onBeforeUnmount(() => {
           <PhUserCircle :size="22" weight="duotone" />
           <span>Sign in</span>
         </button>
+        <button v-else type="button" class="flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-[var(--app-muted)]" @click="auth.isOwner ? router.push('/owner/dashboard') : auth.isDeveloper ? router.push('/developer/dashboard') : openDialog('account')"><PhUserCircle :size="22" /><span>{{ auth.isOwner ? 'Owner' : auth.isDeveloper ? 'Developer' : 'My purchases' }}</span></button>
       </div>
     </nav>
 

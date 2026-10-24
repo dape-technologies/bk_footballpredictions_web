@@ -1,7 +1,8 @@
 <script setup>
-import { inject, onMounted, ref } from 'vue'
+import { inject, onMounted, onBeforeUnmount, ref } from 'vue'
 import { PhArrowRight, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
+import { trackPackageView } from '../telemetry'
 import HeroWordmark from '../components/HeroWordmark.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -15,6 +16,8 @@ const notice = ref('')
 const submitting = ref(null)
 const auth = useAuthStore()
 const openDialog = inject('openAppDialog')
+let packageObserver
+onBeforeUnmount(() => packageObserver?.disconnect())
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -58,6 +61,12 @@ onMounted(async () => {
     else errors.value[name] = result.reason?.message || 'This section could not be loaded.'
   })
   loading.value = false
+  packageObserver = new IntersectionObserver((entries) => {
+    entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
+      trackPackageView(Number(entry.target.dataset.packageId)); packageObserver.unobserve(entry.target)
+    })
+  }, { threshold: 0.5 })
+  requestAnimationFrame(() => document.querySelectorAll('[data-package-id]').forEach((element) => packageObserver?.observe(element)))
 })
 </script>
 
@@ -66,7 +75,7 @@ onMounted(async () => {
     <section id="top" class="hero-stage relative isolate scroll-mt-16 overflow-hidden bg-[#070908] text-[#f2f4ea]">
       <div class="hero-lights pointer-events-none absolute inset-0 -z-20" aria-hidden="true"></div>
       <div class="hero-ledger pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[42%] opacity-55" aria-hidden="true"></div>
-      <img src="/illustrations/income-hero-visual.png" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" />
+      <img src="/illustrations/income-hero-visual.webp" fetchpriority="high" decoding="async" width="1920" height="720" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" />
 
       <div class="relative mx-auto max-w-7xl px-4 pb-20 pt-7 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8 lg:pb-28">
         <button type="button" class="group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]" @click="openDialog?.('free-tip')">
@@ -122,9 +131,9 @@ onMounted(async () => {
         <div v-if="errors.packages" class="mt-9 break-words rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-red-200">Packages are temporarily unavailable. {{ errors.packages }}</div>
         <div v-if="loading" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-white/5 md:w-auto"></div></div>
         <div v-else-if="packages.length" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
-          <article v-for="plan in packages" :key="plan.id" class="group flex min-h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55 md:w-auto">
+          <article v-for="plan in packages" :key="plan.id" :data-package-id="plan.id" class="group flex min-h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55 md:w-auto">
             <div class="relative h-48 overflow-hidden bg-[#171d18]">
-              <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+              <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" loading="lazy" decoding="async" width="640" height="400" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
               <div v-else class="grid h-full place-items-center text-[var(--app-accent)]/45"><PhMoneyWavy :size="64" weight="duotone" /></div>
               <span class="absolute left-4 top-4 bg-[#090b09]/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--app-accent)] backdrop-blur">{{ plan.package_type }}</span>
             </div>
@@ -225,6 +234,7 @@ onMounted(async () => {
 
 @media (max-width: 767px) {
   .hero-income-art {
+    animation: none;
     object-position: 18% center;
     opacity: .32;
   }

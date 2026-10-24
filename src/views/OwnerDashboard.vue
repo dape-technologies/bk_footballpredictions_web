@@ -25,6 +25,8 @@ import {
 import '@fontsource-variable/plus-jakarta-sans'
 import AdminMediaUploader from '../components/AdminMediaUploader.vue'
 import WalletPanel from '../components/WalletPanel.vue'
+import SecurityPanel from '../components/SecurityPanel.vue'
+import OperationsPanel from '../components/OperationsPanel.vue'
 import BrandMark from '../components/BrandMark.vue'
 import { API_ROOT, api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
@@ -59,6 +61,8 @@ const sections = [
   { id: 'payments', label: 'Payments', note: 'Track transactions', icon: PhCreditCard },
   { id: 'wallet', label: 'Wallet', note: 'Balances and payouts', icon: PhWallet },
   { id: 'members', label: 'Members', note: 'Audience controls', icon: PhUsersThree },
+  { id: 'insights', label: 'Insights', note: 'Conversion and speed', icon: PhChartLineUp },
+  { id: 'security', label: 'Security', note: 'Sessions and verification', icon: PhCheck },
 ]
 
 const activeMeta = computed(() => sections.find((item) => item.id === section.value))
@@ -327,6 +331,8 @@ onMounted(loadAll)
       </header>
 
       <div class="owner-content">
+        <SecurityPanel v-if="section === 'security'" />
+        <OperationsPanel v-if="section === 'insights'" />
         <div v-if="notice" class="owner-toast" role="status"><PhCheck :size="18" />{{ notice }}</div>
         <div v-if="error" class="owner-alert" role="alert">
           <div><strong>The control room needs attention</strong><p>{{ error }}</p></div>

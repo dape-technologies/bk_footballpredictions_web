@@ -2,8 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import HomeView from '../views/HomeView.vue'
 import AdminLoginView from '../views/AdminLoginView.vue'
-import OwnerDashboard from '../views/OwnerDashboard.vue'
-import DeveloperDashboard from '../views/DeveloperDashboard.vue'
+const OwnerDashboard = () => import('../views/OwnerDashboard.vue')
+const DeveloperDashboard = () => import('../views/DeveloperDashboard.vue')
 import DeveloperLoginView from '../views/DeveloperLoginView.vue'
 
 const sectionRedirect = (hash) => ({ path: '/', hash })

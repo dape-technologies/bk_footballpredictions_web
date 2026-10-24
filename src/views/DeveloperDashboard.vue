@@ -7,6 +7,8 @@ import {
 import '@fontsource-variable/outfit'
 import BrandMark from '../components/BrandMark.vue'
 import WalletPanel from '../components/WalletPanel.vue'
+import SecurityPanel from '../components/SecurityPanel.vue'
+import OperationsPanel from '../components/OperationsPanel.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
@@ -19,6 +21,20 @@ const gateway = ref(null)
 const gatewayTesting = ref(false)
 const gatewayNotice = ref('')
 const gatewayError = ref('')
+const members = ref([])
+async function toggleMember(member) {
+  if (!window.confirm(`${member.is_blocked ? 'Restore' : 'Block'} this account?`)) return
+  try {
+    await api(`/v1/developer/users/${member.id}/block/`, { method: 'POST', body: JSON.stringify({ blocked: !member.is_blocked }) })
+    members.value = await api('/v1/developer/users/')
+  } catch (caught) { error.value = caught.message }
+}
+async function freezeOwner() {
+  if (!window.confirm('Change the owner wallet payout freeze?')) return
+  try {
+    gateway.value = await api('/v1/developer/payment-gateway/', { method: 'PATCH', body: JSON.stringify({ owner_payouts_frozen: !gateway.value.owner_payouts_frozen }) })
+  } catch (caught) { gatewayError.value = caught.message }
+}
 
 const sections = [
   { id: 'overview', label: 'Overview', note: 'System snapshot', icon: PhGauge },
@@ -28,6 +44,8 @@ const sections = [
   { id: 'users', label: 'Users', note: 'Member analytics', icon: PhUsersThree },
   { id: 'packages', label: 'Packages', note: 'Active plans', icon: PhPackage },
   { id: 'gateway', label: 'Payment gateway', note: 'Relworx connection', icon: PhCreditCard },
+  { id: 'insights', label: 'Insights', note: 'Conversion and speed', icon: PhGauge },
+  { id: 'security', label: 'Security', note: 'Sessions and verification', icon: PhUsersThree },
 ]
 
 const activeMeta = computed(() => sections.find((item) => item.id === section.value) || sections[0])
@@ -73,6 +91,7 @@ async function testConnection() {
 }
 
 onMounted(load)
+onMounted(async () => { try { members.value = await api('/v1/developer/users/') } catch (caught) { error.value = caught.message } })
 </script>
 
 <template>
@@ -80,7 +99,7 @@ onMounted(load)
     <aside class="dev-sidebar">
       <div class="dev-brand"><BrandMark /><div><strong>BK</strong><span>DEV CONSOLE</span></div></div>
       <nav aria-label="Developer console">
-        <button v-for="item in sections" :key="item.id" type="button" :class="{ active: section === item.id }" @click="section = item.id">
+        <button v-for="item in sections" :key="item.id" type="button" :aria-current="section === item.id ? 'page' : undefined" :title="item.label" :class="{ active: section === item.id }" @click="section = item.id">
           <component :is="item.icon" :size="21" />
           <span><strong>{{ item.label }}</strong><small>{{ item.note }}</small></span><i v-if="item.id === 'commission'"></i>
         </button>
@@ -102,6 +121,8 @@ onMounted(load)
       <div v-else-if="error" class="page-state error"><PhWarningCircle :size="30" /><p>{{ error }}</p><button type="button" @click="load">Retry</button></div>
 
       <div v-else-if="analytics" class="dev-content">
+        <SecurityPanel v-if="section === 'security'" />
+        <OperationsPanel v-if="section === 'insights'" />
         <template v-if="section === 'overview'">
           <div class="metric-grid overview-grid">
             <article class="metric success"><span>Total revenue</span><strong>{{ money(finance.total_revenue) }}</strong><small>All confirmed payments</small></article>
@@ -135,6 +156,7 @@ onMounted(load)
         <WalletPanel v-else-if="section === 'wallet'" endpoint="/v1/developer" title="Developer commission wallet" />
 
         <template v-else-if="section === 'users'">
+          <article class="panel table-panel"><h2>All users</h2><div class="table-scroll"><table><thead><tr><th>Name</th><th>Phone</th><th>Roles</th><th>Account</th></tr></thead><tbody><tr v-for="member in members" :key="member.id"><td>{{ member.full_name }}</td><td>{{ member.phone }}</td><td>{{ member.roles?.join(', ') }}</td><td><button v-if="!member.is_owner && !member.is_developer && member.id !== auth.user?.id" type="button" @click="toggleMember(member)">{{ member.is_blocked ? 'Restore' : 'Block' }}</button><span v-else>Protected</span></td></tr></tbody></table></div></article>
           <div class="metric-grid"><article class="metric blue"><span>Total members</span><strong>{{ number(users.total) }}</strong><small>Registered customer accounts</small></article><article class="metric"><span>New today</span><strong>{{ number(users.new_today) }}</strong></article><article class="metric"><span>New this week</span><strong>{{ number(users.new_this_week) }}</strong></article><article class="metric teal"><span>New this month</span><strong>{{ number(users.new_this_month) }}</strong></article></div>
           <article class="chart-card user-chart"><span>Daily signups — last 30 days</span><strong>{{ number(users.new_this_month) }} new this month</strong><div class="bars"><i v-for="point in signupChart" :key="point.date" :style="{ height: barHeight(point.count, maxSignups) }" :title="`${shortDate(point.date)}: ${number(point.count)}`"></i></div></article>
         </template>
@@ -145,6 +167,7 @@ onMounted(load)
         </template>
 
         <template v-else-if="section === 'gateway'">
+          <article class="panel"><h2>Owner payout controls</h2><p>{{ gateway?.owner_payouts_frozen ? 'Owner wallet payouts are frozen.' : 'Owner wallet payouts are available.' }}</p><button type="button" @click="freezeOwner">{{ gateway?.owner_payouts_frozen ? 'Unfreeze owner payouts' : 'Freeze owner payouts' }}</button></article>
           <article class="gateway-callout"><div><span>LIVE PAYMENT CONNECTION</span><h2>Relworx handles all BK payments</h2><p>BK uses one provider. This console can verify authentication and wallet connectivity, but it cannot switch payment routing.</p></div><b><i></i> ACTIVE</b></article>
           <p v-if="gatewayError" class="inline-message error">{{ gatewayError }}</p><p v-if="gatewayNotice" class="inline-message success">{{ gatewayNotice }}</p>
           <article class="gateway-card"><header><div><span>RELWORX</span><h2>Relworx</h2></div><b>{{ gateway?.provider?.configured ? 'IN USE' : 'NOT CONFIGURED' }}</b></header><p>{{ gateway?.provider?.message }}</p><div class="capabilities"><span :class="{ on: gateway?.provider?.capabilities?.collections }">Collections enabled</span><span :class="{ on: gateway?.provider?.capabilities?.payouts }">API payouts enabled</span><span :class="{ on: gateway?.provider?.capabilities?.signed_webhooks }">Signed webhooks</span><span :class="{ on: gateway?.provider?.capabilities?.scheduled_reconciliation }">Scheduled reconciliation</span></div><button type="button" :disabled="gatewayTesting || !gateway?.provider?.configured" @click="testConnection">{{ gatewayTesting ? 'Testing connection…' : 'Test connection' }}</button></article>
@@ -153,6 +176,10 @@ onMounted(load)
     </section>
   </main>
 </template>
+
+<style scoped>
+.panel>button,.table-scroll td>button{min-height:2.75rem;padding:.65rem 1rem;border:1px solid #111;border-radius:.45rem;background:#111;color:#fff;font-weight:700;cursor:pointer}.panel>button:active,.table-scroll td>button:active{transform:translateY(1px)}
+</style>
 
 <style scoped>
 .dev-shell{--ink:#080d17;--panel:#111827;--line:#263248;--muted:#7f8da5;--gold:#f5a400;min-height:100dvh;background:var(--ink);color:#eef2f7;font-family:'Outfit',sans-serif}.dev-sidebar{position:fixed;inset:0 auto 0 0;width:21.5rem;display:flex;flex-direction:column;border-right:1px solid var(--line);background:#0d1523;z-index:3}.dev-brand{height:8rem;display:flex;align-items:center;gap:1rem;padding:1.5rem 2rem;border-bottom:1px solid var(--line)}.dev-brand strong{display:block;font-size:1.35rem;letter-spacing:.14em}.dev-brand span{display:block;margin-top:.2rem;color:var(--gold);font-size:.68rem;font-weight:800;letter-spacing:.18em}.dev-sidebar nav{display:grid;gap:.2rem;padding:1rem}.dev-sidebar nav button{position:relative;display:grid;grid-template-columns:2rem 1fr auto;align-items:center;gap:.6rem;padding:.75rem 1rem;border:1px solid transparent;border-radius:.55rem;background:transparent;color:#7e8899;text-align:left;cursor:pointer;transition:.2s}.dev-sidebar nav button:hover{background:#131e2e;color:#d9e1ec}.dev-sidebar nav button.active{border-color:#5b471a;background:#27261f;color:var(--gold)}.dev-sidebar nav button span{display:grid}.dev-sidebar nav button strong{font-size:1rem}.dev-sidebar nav button small{margin-top:.1rem;color:#566175}.dev-sidebar nav button i{width:.45rem;height:.45rem;border-radius:50%;background:var(--gold);box-shadow:0 0 12px var(--gold)}.dev-sidebar footer{margin-top:auto;border-top:1px solid var(--line)}.developer-identity{display:flex;align-items:center;gap:.8rem;padding:1.2rem}.developer-identity>b{width:3rem;height:3rem;display:grid;place-items:center;border-radius:50%;background:var(--gold);color:#0b1019}.developer-identity span{display:grid}.developer-identity small{color:var(--muted)}.dev-sidebar footer>button{width:100%;display:flex;align-items:center;gap:.5rem;padding:1rem 1.5rem;border:0;border-top:1px solid var(--line);background:transparent;color:#7f8a9d;cursor:pointer}.dev-main{min-height:100dvh;margin-left:21.5rem}.dev-header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;min-height:8rem;padding:1.4rem 3rem;border-bottom:1px solid var(--line);background:rgba(8,13,23,.94);backdrop-filter:blur(14px)}.dev-header p{margin:0;color:var(--gold);font-size:.74rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.dev-header h1{margin:.35rem 0 .15rem;font-size:2rem;line-height:1;letter-spacing:-.04em}.dev-header>div>span{color:var(--muted)}.header-actions{display:flex;align-items:center;gap:1rem}.header-actions time{color:#59677e}.header-actions>b{padding:.45rem .8rem;border:1px solid #6b4a0c;border-radius:.35rem;background:#241b0c;color:var(--gold);font-size:.7rem;letter-spacing:.12em}.header-actions button{width:2.8rem;height:2.8rem;display:grid;place-items:center;border:1px solid var(--line);border-radius:.55rem;background:#172137;color:#8090a9;cursor:pointer}.mobile-section{display:none}.dev-content{width:min(100%,100rem);display:grid;gap:1.5rem;margin:0 auto;padding:2.6rem 3rem 4rem}.page-state{min-height:60vh;display:grid;place-items:center;align-content:center;gap:.7rem;color:var(--muted)}.page-state button{padding:.7rem 1.1rem;border:1px solid var(--line);background:var(--panel);color:#fff}.page-state.error{color:#fda4af}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1rem}.metric{position:relative;min-height:9.2rem;padding:1.55rem;border:1px solid var(--line);border-radius:.7rem;background:var(--panel);overflow:hidden}.metric:before{content:'';position:absolute;inset:0 auto 0 0;width:.22rem;background:#4b5b73}.metric.success:before{background:#20c997}.metric.blue:before{background:#3b82f6}.metric.gold:before{background:var(--gold)}.metric.teal:before{background:#2dd4bf}.metric.warn:before{background:#f97316}.metric.danger:before{background:#fb4d5e}.metric>span,.chart-card>span{color:#7f8da5;font-size:.72rem;font-weight:750;letter-spacing:.11em;text-transform:uppercase}.metric>strong{display:block;margin:1rem 0 .25rem;font-size:clamp(1.35rem,2vw,2rem);font-variant-numeric:tabular-nums;letter-spacing:-.035em}.metric>small{color:#647188}.audit-strip{display:flex;flex-wrap:wrap;gap:1rem 2.3rem;padding:1rem 1.5rem;border:1px solid #5b471a;border-left:3px solid var(--gold);border-radius:.7rem;background:#0d1525;color:#77869d}.audit-strip.healthy{border-left-color:#20c997}.audit-strip strong{color:#d9e1ec}.chart-grid,.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.chart-card,.panel,.gateway-card,.gateway-callout,.commission-banner{padding:1.6rem;border:1px solid var(--line);border-radius:.7rem;background:var(--panel)}.chart-card>strong{display:block;margin:.5rem 0 1rem;font-size:1.15rem}.bars{height:15rem;display:flex;align-items:flex-end;gap:.34rem;padding-top:1rem}.bars i{flex:1;min-width:.25rem;background:var(--gold);border-radius:.16rem .16rem 0 0;transition:.25s}.blue-chart .bars i,.user-chart .bars i{background:#3b82f6}.panel h2{margin:0;font-size:1rem}.panel>p{color:var(--muted)}.hbars,.fact-list{display:grid;gap:1rem;margin-top:1.5rem}.hbars>div{display:grid;grid-template-columns:8rem 1fr 8rem;align-items:center;gap:.8rem}.hbars i{height:.55rem;border-radius:1rem;background:#202d47;overflow:hidden}.hbars i b{display:block;height:100%;border-radius:inherit;background:var(--gold)}.hbars>div>strong{text-align:right;font-size:.75rem}.fact-list>div{display:flex;justify-content:space-between;padding-bottom:.8rem;border-bottom:1px solid var(--line)}.table-panel{padding:0;overflow:hidden}.table-panel h2,.table-panel>p{padding:0 1.5rem}.table-panel h2{padding-top:1.4rem}.table-scroll{overflow:auto}.table-scroll table{width:100%;border-collapse:collapse;font-size:.76rem}.table-scroll th,.table-scroll td{padding:.9rem 1rem;border-top:1px solid var(--line);text-align:left;white-space:nowrap}.table-scroll th{color:#718097;font-size:.65rem;text-transform:uppercase}.table-scroll code{color:#9fb0c9}.status{display:inline-block;padding:.25rem .45rem;border-radius:.3rem;background:#273245;color:#a8b3c5;font-size:.62rem;font-weight:800;text-transform:uppercase}.status.paid,.status.completed{background:#0e3a31;color:#5ee0ba}.status.failed,.status.expired,.status.cancelled{background:#431d2a;color:#fda4af}.status.pending,.status.created,.status.submitted,.status.needs_review{background:#3a3018;color:#f8cd67}.positive{color:#5ee0ba;font-weight:800}.commission-banner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:1.5rem;border-color:#0c684f;background:linear-gradient(100deg,#071e1d,#171416)}.commission-banner>strong{color:var(--gold);font-size:3rem}.commission-banner h2{margin:0}.commission-banner h2 span{margin-left:.6rem;color:#35d5a3;font-size:.65rem}.commission-banner p{margin:.45rem 0 0;color:#7e8da4}.commission-banner dl{display:flex;gap:2.2rem}.commission-banner dt{color:#718097;font-size:.62rem;text-transform:uppercase}.commission-banner dd{margin:.35rem 0 0;font-weight:800}.user-chart{min-height:28rem}.user-chart .bars{height:20rem}.gateway-callout{display:flex;justify-content:space-between;gap:2rem}.gateway-callout span{color:#60a5fa;font-size:.68rem;font-weight:900;letter-spacing:.15em}.gateway-callout h2{margin:.8rem 0 .5rem;font-size:1.7rem}.gateway-callout p{max-width:48rem;color:#8390a5}.gateway-callout>b{align-self:flex-start;color:#34d399;font-size:.72rem}.gateway-callout>b i{display:inline-block;width:.55rem;height:.55rem;margin-right:.45rem;border-radius:50%;background:#34d399;box-shadow:0 0 0 .4rem rgba(52,211,153,.08)}.gateway-card{max-width:48rem}.gateway-card header{display:flex;justify-content:space-between}.gateway-card header span{color:#59677e;font-size:.66rem;font-weight:900;letter-spacing:.16em}.gateway-card h2{margin:.35rem 0}.gateway-card header>b{height:max-content;padding:.35rem .55rem;border:1px solid #1c765d;color:#4adeb3;font-size:.62rem}.gateway-card>p{color:#7f8da5}.capabilities{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.5rem 0}.capabilities span{padding:.45rem .65rem;background:#172136;color:#6e7a8f;font-size:.7rem}.capabilities span.on{color:#6ee7bf}.gateway-card>button{width:100%;padding:.85rem;border:1px solid #33435f;border-radius:.4rem;background:transparent;color:#e9eef5;font-weight:750;cursor:pointer}.gateway-card>button:hover{border-color:var(--gold);color:var(--gold)}.gateway-card>button:disabled{opacity:.45}.inline-message{max-width:48rem;margin:0;padding:.8rem 1rem;border-left:3px solid}.inline-message.success{border-color:#20c997;background:#0c2c27;color:#79e5c6}.inline-message.error{border-color:#fb7185;background:#381925;color:#fda4af}button:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}@media(max-width:1100px){.dev-sidebar{width:17rem}.dev-main{margin-left:17rem}.metric-grid{grid-template-columns:repeat(2,1fr)}.commission-banner{grid-template-columns:auto 1fr}.commission-banner dl{grid-column:1/-1}.chart-grid,.detail-grid{grid-template-columns:1fr}}@media(max-width:760px){.dev-sidebar{position:static;width:auto}.dev-sidebar nav,.dev-sidebar footer{display:none}.dev-brand{height:auto;padding:1rem}.dev-main{margin-left:0}.dev-header{position:static;display:block;padding:1.2rem}.header-actions{display:none}.mobile-section{display:grid;gap:.35rem;margin-top:1rem;color:var(--muted);font-size:.7rem}.mobile-section select{padding:.7rem;border:1px solid var(--line);border-radius:.4rem;background:var(--panel);color:#fff}.dev-content{padding:1.2rem}.metric-grid{grid-template-columns:1fr}.metric{min-height:auto}.commission-banner{grid-template-columns:1fr}.commission-banner dl{display:grid;gap:1rem}.hbars>div{grid-template-columns:6rem 1fr}.hbars>div>strong{grid-column:2}.gateway-callout{display:grid}.bars{height:11rem}}
