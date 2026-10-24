@@ -48,6 +48,9 @@ const paymentFilters = reactive({ search: '', status: '', failure_category: '', 
 const wins = ref([])
 const customers = ref([])
 const packageFile = ref(null)
+const paidPackageFile = ref(null)
+const existingCoverUrl = ref('')
+const existingPaidImageUrl = ref('')
 const editingPackageId = ref(null)
 const packageEditor = ref(null)
 const packageNameInput = ref(null)
@@ -169,6 +172,9 @@ function resetPackageForm() {
   editingPackageId.value = null
   Object.assign(packageForm, emptyPackage())
   packageFile.value = null
+  paidPackageFile.value = null
+  existingCoverUrl.value = ''
+  existingPaidImageUrl.value = ''
 }
 
 async function editPackage(plan) {
@@ -185,6 +191,9 @@ async function editPackage(plan) {
     is_active: plan.is_active,
   })
   packageFile.value = null
+  paidPackageFile.value = null
+  existingCoverUrl.value = plan.image_url || ''
+  existingPaidImageUrl.value = plan.paid_image_url || ''
   error.value = ''
   await nextTick()
   packageEditor.value?.scrollIntoView({ block: 'start' })
@@ -193,8 +202,11 @@ async function editPackage(plan) {
 
 async function savePackage() {
   error.value = ''
-  if (!isEditingPackage.value && !packageFile.value) {
-    error.value = 'Add a package photo before saving.'
+  const missingImages = []
+  if (!isEditingPackage.value && !packageFile.value) missingImages.push('Cover photo')
+  if (!isEditingPackage.value && !paidPackageFile.value) missingImages.push('Paid package image')
+  if (missingImages.length) {
+    error.value = `${missingImages.join(' and ')}: this field is required.`
     return
   }
 
@@ -206,6 +218,7 @@ async function savePackage() {
     })
     data.append('slug', slugify(packageForm.name))
     if (packageFile.value) data.append('image', packageFile.value)
+    if (paidPackageFile.value) data.append('paid_image', paidPackageFile.value)
     const path = isEditingPackage.value
       ? `/v1/owner/packages/${editingPackageId.value}/`
       : '/v1/owner/packages/'
@@ -411,13 +424,24 @@ onMounted(loadAll)
                   <label><span>Betslip link</span><input v-model.trim="packageForm.betslip_link" required type="url" placeholder="https://..."></label>
                 </div>
 
-                <AdminMediaUploader
-                  id="package-photo"
-                  v-model="packageFile"
-                  label="Package photo"
-                  :help="isEditingPackage ? 'Choose a new image only if you want to replace the current photo.' : 'One JPG, PNG or WebP image. This appears on the public package card.'"
-                  :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
-                />
+                <div class="owner-media-fields">
+                  <AdminMediaUploader
+                    id="package-cover-photo"
+                    v-model="packageFile"
+                    :existing-url="existingCoverUrl"
+                    label="Cover photo"
+                    :help="isEditingPackage ? 'This is the public package-card image. Choose replace only to change it.' : 'One JPG, PNG or WebP image. This appears publicly on the package card.'"
+                    :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
+                  />
+                  <AdminMediaUploader
+                    id="package-paid-image"
+                    v-model="paidPackageFile"
+                    :existing-url="existingPaidImageUrl"
+                    label="Paid package image"
+                    :help="isEditingPackage ? 'This private image appears with the code and link after payment. Choose replace only to change it.' : 'One JPG, PNG or WebP image. Customers see it only after payment is confirmed.'"
+                    :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
+                  />
+                </div>
               </div>
 
               <div class="package-form-footer">

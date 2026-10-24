@@ -6,6 +6,7 @@ import { PhArrowCounterClockwise, PhImage, PhTrash, PhUploadSimple } from '@phos
 const props = defineProps({
   id: { type: String, required: true },
   modelValue: { type: Object, default: null },
+  existingUrl: { type: String, default: '' },
   label: { type: String, required: true },
   help: { type: String, default: '' },
   allowedFileTypes: { type: Array, required: true },
@@ -140,6 +141,19 @@ onBeforeUnmount(() => {
         </button>
         <button type="button" class="danger" @click="removeFile">
           <PhTrash :size="16" /> Remove
+        </button>
+      </div>
+    </div>
+
+    <div v-else-if="existingUrl" class="admin-uploader-preview">
+      <img :src="existingUrl" :alt="`Current ${label.toLowerCase()}`">
+      <div class="admin-uploader-file">
+        <strong>Current image</strong>
+        <span>Choose replace only when you want to upload a new file.</span>
+      </div>
+      <div class="admin-uploader-actions single">
+        <button type="button" @click="openPicker">
+          <PhArrowCounterClockwise :size="16" /> Replace
         </button>
       </div>
     </div>
@@ -293,6 +307,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 1fr;
   border-top: 1px solid #ececea;
 }
+.admin-uploader-actions.single { grid-template-columns: 1fr; }
 
 .admin-uploader-actions button {
   min-height: 2.7rem;

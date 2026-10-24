@@ -36,6 +36,7 @@ function purchase(paid = false) {
     status: paid ? 'paid' : 'pending',
     code: paid ? 'BK-DAY-78' : '',
     betslip_link: paid ? 'https://example.com/slips/daily-edge' : '',
+    paid_image_url: paid ? 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="1100"%3E%3Crect width="800" height="1100" fill="%23101713"/%3E%3C/svg%3E' : '',
     latest_payment: {
       id: 31,
       reference: 'BKP-TEST123456',
@@ -84,6 +85,7 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   await expect(page.getByText('Approve the prompt on your phone')).toBeVisible()
   await expect(page.getByText('Payment confirmed')).toBeVisible({ timeout: 7000 })
   await expect(page.getByText('BK-DAY-78')).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Daily Edge paid package image' })).toBeVisible()
   await page.route('https://example.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Purchased betslip</h1>' }))
   const accessRequest = page.waitForRequest('**/api/v1/me/purchases/21/access/')
   const popupPromise = page.waitForEvent('popup')

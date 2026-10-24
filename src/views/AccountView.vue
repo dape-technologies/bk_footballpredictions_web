@@ -17,6 +17,18 @@ async function load() {
   finally { loading.value = false }
 }
 
+async function openBetslip(purchase) {
+  const opened = window.open('about:blank', '_blank')
+  try {
+    const response = await api(`/v1/me/purchases/${purchase.id}/access/`, { method: 'POST' })
+    if (opened) opened.location = response.url
+    else location.assign(response.url)
+  } catch (err) {
+    opened?.close()
+    error.value = err.message
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -28,10 +40,13 @@ onMounted(load)
       <div v-if="loading" class="mt-6 h-64 animate-pulse rounded-2xl bg-[var(--app-surface)]"></div>
       <StatePanel v-else-if="!purchases.length" title="No purchases yet" message="Choose a plan and make your first payment." class="mt-6"><RouterLink to="/packages" class="inline-flex items-center gap-2 rounded-xl bg-[var(--app-accent)] px-4 py-3 font-bold text-[var(--app-accent-ink)]">Browse plans <PhArrowRight :size="16" /></RouterLink></StatePanel>
       <div v-else class="mt-6 grid gap-4">
-        <article v-for="purchase in purchases" :key="purchase.id" class="grid gap-5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-5 md:grid-cols-[1fr_auto_auto] md:items-center">
+        <article v-for="purchase in purchases" :key="purchase.id" class="grid gap-5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div><span :class="['inline-flex rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-[.1em]', purchase.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-[var(--app-surface-2)] text-[var(--app-muted)]']">{{ purchase.status }}</span><h3 class="mt-3 text-xl font-bold">{{ purchase.package.name }}</h3><p class="mt-1 text-sm text-[var(--app-muted)]">{{ purchase.is_paid ? 'Payment verified and access unlocked.' : 'Complete mobile-money payment to unlock this package.' }}</p></div>
           <dl class="grid grid-cols-2 gap-5 text-sm"><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhCalendar :size="15" /> Initiated</dt><dd class="mt-1 font-semibold">{{ new Date(purchase.initiated_at).toLocaleDateString('en-UG') }}</dd></div><div><dt class="flex items-center gap-1.5 text-[var(--app-muted)]"><PhClock :size="15" /> Paid</dt><dd class="mt-1 font-semibold">{{ purchase.paid_at ? new Date(purchase.paid_at).toLocaleString('en-UG') : 'Not yet' }}</dd></div></dl>
-          <div v-if="purchase.is_paid" class="flex flex-wrap gap-2 md:justify-end"><a :href="purchase.betslip_link" target="_blank" rel="noopener" class="rounded-xl bg-[var(--app-accent)] px-3 py-2 text-sm font-bold text-[var(--app-accent-ink)]">Open betslip</a><a v-if="purchase.latest_payment?.receipt_url" :href="purchase.latest_payment.receipt_url" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-line)] px-3 py-2 text-sm font-bold"><PhReceipt :size="16" /> Receipt</a></div>
+          <div v-if="purchase.is_paid" class="grid gap-4 border-t border-[var(--app-line)] pt-5 md:col-span-2 md:grid-cols-[minmax(0,1fr)_minmax(14rem,.55fr)]">
+            <a v-if="purchase.paid_image_url" :href="purchase.paid_image_url" target="_blank" rel="noopener" class="block overflow-hidden rounded-xl bg-[var(--app-surface-2)]"><img :src="purchase.paid_image_url" :alt="`${purchase.package.name} paid package image`" class="max-h-[32rem] w-full object-contain" loading="lazy" decoding="async"><span class="block border-t border-[var(--app-line)] px-4 py-2 text-center text-xs font-bold text-[var(--app-muted)]">Open full image</span></a>
+            <div class="grid content-start gap-3"><div><span class="text-xs font-bold uppercase tracking-[.1em] text-[var(--app-muted)]">Betslip code</span><code class="mt-2 block break-all text-lg font-black text-[var(--app-accent)]">{{ purchase.code }}</code></div><button type="button" class="rounded-xl bg-[var(--app-accent)] px-3 py-3 text-sm font-bold text-[var(--app-accent-ink)]" @click="openBetslip(purchase)">Open betslip</button><a v-if="purchase.latest_payment?.receipt_url" :href="purchase.latest_payment.receipt_url" target="_blank" rel="noopener" class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[var(--app-line)] px-3 py-3 text-sm font-bold"><PhReceipt :size="16" /> Receipt</a></div>
+          </div>
         </article>
       </div>
     </section>

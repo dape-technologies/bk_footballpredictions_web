@@ -350,6 +350,7 @@
 .owner-form { display: grid; gap: 1.25rem; }
 .owner-editor-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(18rem, .65fr); gap: 2rem; align-items: start; }
 .owner-form-fields { display: grid; gap: 1rem; }
+.owner-media-fields { display: grid; gap: 1.25rem; min-width: 0; }
 .field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
 .owner-form label:not(.admin-toggle) { display: grid; gap: .5rem; color: #111; font-size: .8rem; font-weight: 800; }

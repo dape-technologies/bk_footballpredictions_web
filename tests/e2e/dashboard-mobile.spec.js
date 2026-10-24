@@ -34,6 +34,11 @@ for (const role of ['owner', 'developer']) {
       await walletButton.click()
       await expect(page.getByText(/Each withdrawal keeps the required/)).toBeVisible()
       await expect(page.getByText(/Relworx balance:/)).toHaveCount(0)
+      const packagesButton = page.locator('nav').getByRole('button', { name: /Packages/ })
+      await packagesButton.scrollIntoViewIfNeeded()
+      await packagesButton.click()
+      await expect(page.getByText('Cover photo', { exact: true })).toBeVisible()
+      await expect(page.getByText('Paid package image', { exact: true })).toBeVisible()
     }
     await expect(page.getByRole('navigation', { name: 'App navigation' })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
