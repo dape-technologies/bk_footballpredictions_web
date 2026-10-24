@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   PhArrowClockwise, PhCreditCard, PhCurrencyCircleDollar, PhGauge, PhPackage,
-  PhSignOut, PhSmiley, PhUsersThree, PhWallet, PhWarningCircle,
+  PhShieldCheck, PhSignOut, PhSmiley, PhUsersThree, PhWallet, PhWarningCircle,
 } from '@phosphor-icons/vue'
 import '@fontsource-variable/outfit'
 import BrandMark from '../components/BrandMark.vue'
@@ -113,7 +113,7 @@ onMounted(async () => { try { members.value = await api('/v1/developer/users/') 
     <section class="dev-main">
       <header class="dev-header">
         <div><p>Developer analytics</p><h1>{{ activeMeta.label }}</h1><span>{{ activeMeta.note }}</span></div>
-        <div class="header-actions"><time>{{ new Date().toLocaleDateString('en-UG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }}</time><b>DEV MODE</b><button type="button" aria-label="Refresh analytics" :disabled="loading" @click="load"><PhArrowClockwise :size="20" /></button></div>
+        <div class="header-actions"><time>{{ new Date().toLocaleDateString('en-UG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }}</time><b>DEV MODE</b><button type="button" aria-label="Open Security" title="Security" @click="section = 'security'"><PhShieldCheck :size="20" /></button><button type="button" aria-label="Sign out" title="Sign out" @click="auth.logout"><PhSignOut :size="20" /></button><button type="button" aria-label="Refresh analytics" title="Refresh" :disabled="loading" @click="load"><PhArrowClockwise :size="20" /></button></div>
         <label class="mobile-section"><span>Dashboard section</span><select v-model="section"><option v-for="item in sections" :key="item.id" :value="item.id">{{ item.label }}</option></select></label>
       </header>
 
@@ -191,11 +191,11 @@ onMounted(async () => { try { members.value = await api('/v1/developer/users/') 
 .dev-sidebar{width:16.25rem;padding:1.5rem 1rem;border-right:1px solid #262626;background:#0b0b0b;color:#fff}
 .dev-brand{height:auto;justify-content:space-between;padding:.1rem .4rem 1.35rem;border-color:#2b2b2b}
 .dev-brand strong{font-size:1rem;letter-spacing:.08em}.dev-brand span{color:#c7ff45;font-size:.61rem}
-.dev-sidebar nav{gap:.35rem;padding:1.75rem 0 1rem}
+.dev-sidebar nav{min-height:0;gap:.35rem;padding:1.75rem 0 1rem;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#444 transparent}
 .dev-sidebar nav button{display:flex;min-height:3.35rem;gap:.8rem;padding:.65rem .75rem;border-radius:.65rem;color:#aaa}
 .dev-sidebar nav button:hover{border-color:#333;background:#181818;color:#fff}.dev-sidebar nav button.active{border-color:#fff;background:#fff;color:#0b0b0b}
 .dev-sidebar nav button strong{font-size:.8rem}.dev-sidebar nav button small{color:#777;font-size:.66rem}.dev-sidebar nav button.active small{color:#5d5d5d}.dev-sidebar nav button i{margin-left:auto;background:#111;box-shadow:none}
-.dev-sidebar footer{border-color:#2b2b2b}.developer-identity{padding:1.15rem .35rem}.developer-identity>b{width:2.35rem;height:2.35rem;border-radius:.55rem;background:#fff;color:#111}.developer-identity strong{font-size:.75rem}.developer-identity small{color:#777;font-size:.65rem}
+.dev-sidebar footer{flex:0 0 auto;border-color:#2b2b2b}.developer-identity{padding:1.15rem .35rem}.developer-identity>b{width:2.35rem;height:2.35rem;border-radius:.55rem;background:#fff;color:#111}.developer-identity strong{font-size:.75rem}.developer-identity small{color:#777;font-size:.65rem}
 .dev-sidebar footer>button{justify-content:center;margin-top:.2rem;padding:.75rem;border:1px solid #333;border-radius:.55rem;background:#171717;color:#fff;font-size:.75rem;font-weight:800}
 .dev-main{margin-left:16.25rem;background:#f4f4f1}.dev-header{min-height:6.4rem;padding:1.25rem clamp(1.5rem,4vw,3.25rem);border-color:#dededb;background:rgb(255 255 255 / .94)}
 .dev-header p{color:#6b6f73;font-size:.67rem}.dev-header h1{font-size:clamp(1.65rem,2.6vw,2.35rem)}.dev-header>div>span{color:#687078;font-size:.78rem}
