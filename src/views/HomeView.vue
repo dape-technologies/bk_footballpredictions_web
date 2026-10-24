@@ -75,7 +75,7 @@ onMounted(async () => {
     <section id="top" class="hero-stage relative isolate scroll-mt-16 overflow-hidden bg-[#070908] text-[#f2f4ea]">
       <div class="hero-lights pointer-events-none absolute inset-0 -z-20" aria-hidden="true"></div>
       <div class="hero-ledger pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[42%] opacity-55" aria-hidden="true"></div>
-      <img src="/illustrations/income-hero-visual.webp" fetchpriority="high" decoding="async" width="1920" height="720" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" />
+      <picture><source media="(max-width: 767px)" srcset="/illustrations/mobile/income-hero-visual.webp"><img src="/illustrations/income-hero-visual.webp" fetchpriority="high" decoding="async" width="1920" height="720" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" /></picture>
 
       <div class="relative mx-auto max-w-7xl px-4 pb-20 pt-7 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8 lg:pb-28">
         <button type="button" class="group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]" @click="openDialog?.('free-tip')">

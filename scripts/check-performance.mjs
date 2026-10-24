@@ -22,6 +22,7 @@ try {
   await mkdir('lighthouse-reports', { recursive: true })
   await writeFile('lighthouse-reports/mobile.html', report)
   await writeFile('lighthouse-reports/mobile.json', JSON.stringify(lhr, null, 2))
+  if (lhr.runtimeError) throw new Error(`Lighthouse measurement failed: ${lhr.runtimeError.message}`)
   const limits = { 'largest-contentful-paint': 2500, 'cumulative-layout-shift': .1, 'total-blocking-time': 200 }
   for (const [id, limit] of Object.entries(limits)) {
     const actual = lhr.audits[id].numericValue
