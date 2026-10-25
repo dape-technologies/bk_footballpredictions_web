@@ -54,7 +54,9 @@ const registering = computed(() => props.mode === 'register')
 const isAccount = computed(() => props.mode === 'account')
 const isFreeTip = computed(() => props.mode === 'free-tip')
 const isPayment = computed(() => props.mode === 'payment')
-const paymentPending = computed(() => payment.value?.status === 'pending')
+const paymentPending = computed(() => ['submitted', 'pending'].includes(payment.value?.status))
+const paymentRetryable = computed(() => ['failed', 'expired', 'cancelled'].includes(payment.value?.status))
+const paymentNeedsReview = computed(() => payment.value?.status === 'needs_review')
 const maximumBirthDate = (() => {
   const date = new Date()
   date.setFullYear(date.getFullYear() - 18)
@@ -239,9 +241,9 @@ onBeforeUnmount(() => {
 
           <form v-else class="mt-7 grid gap-4" @submit.prevent="startPayment">
             <label class="grid gap-2 text-sm font-semibold">Mobile-money number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"><small class="font-normal text-white/40">Use the MTN or Airtel number that will approve the payment.</small></label>
-            <p v-if="payment?.status === 'failed'" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ payment.provider_message || 'The payment was not completed. You can try again.' }}</p>
+            <p v-if="paymentRetryable || paymentNeedsReview" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100">{{ payment.customer_message || 'The payment was not completed. You can try again.' }}</p>
             <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
-            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Sending prompt…' : payment?.status === 'failed' ? 'Try payment again' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
             <p class="text-center text-xs leading-5 text-white/35">Access unlocks only after Relworx confirms the exact amount, currency, and transaction reference.</p>
           </form>
           <p v-if="paymentPending && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>
@@ -263,7 +265,7 @@ onBeforeUnmount(() => {
               <p class="mt-3 text-xs text-white/55">{{ countdown(purchaseItem.package.closes_at) }} · {{ new Date(purchaseItem.package.closes_at).toLocaleString('en-UG') }}</p>
               <details v-if="purchaseItem.access_history?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Betslip access history</summary><p v-for="(access, index) in purchaseItem.access_history" :key="index">Opened {{ new Date(access).toLocaleString('en-UG') }}</p></details>
               <a v-if="purchaseItem.latest_payment?.receipt_url" :href="purchaseItem.latest_payment.receipt_url" target="_blank" rel="noopener" class="mt-3 block text-sm font-bold text-[var(--app-accent)]">Open receipt / save as PDF</a>
-              <details v-if="purchaseItem.payment_timeline?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Payment history</summary><ol class="grid gap-3"><li v-for="attempt in purchaseItem.payment_timeline" :key="attempt.reference"><strong>{{ attempt.reference }} · {{ attempt.status }}</strong><p>{{ new Date(attempt.created_at).toLocaleString('en-UG') }}</p><p v-if="attempt.failure_reason">{{ attempt.failure_reason }}</p></li></ol></details>
+              <details v-if="purchaseItem.payment_timeline?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Payment history</summary><ol class="grid gap-3"><li v-for="attempt in purchaseItem.payment_timeline" :key="attempt.reference"><strong>{{ attempt.reference }} · {{ attempt.status }}</strong><p>{{ new Date(attempt.created_at).toLocaleString('en-UG') }}</p><p v-if="attempt.customer_message">{{ attempt.customer_message }}</p></li></ol></details>
               <button v-if="!purchaseItem.is_paid && purchaseItem.package.is_open" type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Retry payment</button>
             </article>
           </div>

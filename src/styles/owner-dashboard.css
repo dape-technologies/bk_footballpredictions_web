@@ -499,7 +499,7 @@
 .package-admin-table a { color: #111; font-weight: 800; text-decoration: underline; text-underline-offset: .2rem; }
 .package-admin-table tr.is-editing td { background: #f4f4f1; }
 
-.package-edit-button {
+.package-clone-button {
   min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
@@ -516,9 +516,9 @@
   transition: background .2s ease, color .2s ease, transform .2s ease;
 }
 
-.package-edit-button:hover { background: #111; color: #fff; }
-.package-edit-button:active { transform: scale(.98); }
-.package-edit-button:focus-visible { outline: 3px solid rgb(17 17 17 / .16); outline-offset: 2px; }
+.package-clone-button:hover { background: #111; color: #fff; }
+.package-clone-button:active { transform: scale(.98); }
+.package-clone-button:focus-visible { outline: 3px solid rgb(17 17 17 / .16); outline-offset: 2px; }
 
 .package-table-photo {
   width: 3.25rem;

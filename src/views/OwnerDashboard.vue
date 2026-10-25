@@ -5,13 +5,13 @@ import {
   PhChartLineUp,
   PhCheck,
   PhCreditCard,
+  PhCopy,
   PhDownloadSimple,
   PhEye,
   PhHouse,
   PhHourglassMedium,
   PhMoneyWavy,
   PhPackage,
-  PhPencilSimple,
   PhPlus,
   PhReceipt,
   PhSignOut,
@@ -49,11 +49,10 @@ const wins = ref([])
 const customers = ref([])
 const packageFile = ref(null)
 const paidPackageFile = ref(null)
-const existingCoverUrl = ref('')
-const existingPaidImageUrl = ref('')
-const editingPackageId = ref(null)
 const packageEditor = ref(null)
 const packageNameInput = ref(null)
+const cloneSourceName = ref('')
+const packageSlugSeed = ref('')
 const winFile = ref(null)
 const confirmation = ref(null)
 
@@ -87,7 +86,6 @@ const emptyPackage = () => ({
   is_active: true,
 })
 const packageForm = reactive(emptyPackage())
-const isEditingPackage = computed(() => editingPackageId.value !== null)
 const winForm = reactive({ caption: '' })
 const money = (value) => new Intl.NumberFormat('en-UG').format(value || 0)
 const percent = (value) => `${Number(value || 0).toFixed(1)}%`
@@ -95,13 +93,6 @@ const formatDate = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : 'Not set'
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-const toDatetimeLocal = (value) => {
-  if (!value) return ''
-  const date = new Date(value)
-  const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60_000))
-  return localDate.toISOString().slice(0, 16)
-}
-
 function paymentQuery() {
   const query = new URLSearchParams()
   Object.entries(paymentFilters).forEach(([key, value]) => { if (value) query.set(key, value) })
@@ -169,42 +160,40 @@ function flash(text) {
 }
 
 function resetPackageForm() {
-  editingPackageId.value = null
   Object.assign(packageForm, emptyPackage())
   packageFile.value = null
   paidPackageFile.value = null
-  existingCoverUrl.value = ''
-  existingPaidImageUrl.value = ''
+  cloneSourceName.value = ''
+  packageSlugSeed.value = ''
 }
 
-async function editPackage(plan) {
-  editingPackageId.value = plan.id
+async function clonePackage(plan) {
   Object.assign(packageForm, {
-    name: plan.name,
+    name: `${plan.name} copy`,
     package_type: plan.package_type,
     price: plan.price,
     currency: plan.currency || 'UGX',
     win_probability: plan.win_probability,
-    closes_at: toDatetimeLocal(plan.closes_at),
-    betslip_link: plan.betslip_link,
-    code: plan.code,
-    is_active: plan.is_active,
+    closes_at: '',
+    betslip_link: '',
+    code: '',
+    is_active: false,
   })
   packageFile.value = null
   paidPackageFile.value = null
-  existingCoverUrl.value = plan.image_url || ''
-  existingPaidImageUrl.value = plan.paid_image_url || ''
+  cloneSourceName.value = plan.name
+  packageSlugSeed.value = `${slugify(plan.name)}-${Date.now().toString(36)}`
   error.value = ''
   await nextTick()
-  packageEditor.value?.scrollIntoView({ block: 'start' })
+  packageEditor.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   packageNameInput.value?.focus({ preventScroll: true })
 }
 
 async function savePackage() {
   error.value = ''
   const missingImages = []
-  if (!isEditingPackage.value && !packageFile.value) missingImages.push('Cover photo')
-  if (!isEditingPackage.value && !paidPackageFile.value) missingImages.push('Paid package image')
+  if (!packageFile.value) missingImages.push('Cover photo')
+  if (!paidPackageFile.value) missingImages.push('Paid package image')
   if (missingImages.length) {
     error.value = `${missingImages.join(' and ')}: this field is required.`
     return
@@ -216,16 +205,12 @@ async function savePackage() {
     Object.entries(packageForm).forEach(([key, value]) => {
       data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
     })
-    data.append('slug', slugify(packageForm.name))
+    data.append('slug', packageSlugSeed.value || slugify(packageForm.name))
     if (packageFile.value) data.append('image', packageFile.value)
     if (paidPackageFile.value) data.append('paid_image', paidPackageFile.value)
-    const path = isEditingPackage.value
-      ? `/v1/owner/packages/${editingPackageId.value}/`
-      : '/v1/owner/packages/'
-    await api(path, { method: isEditingPackage.value ? 'PATCH' : 'POST', body: data })
-    const message = isEditingPackage.value ? 'Package updated.' : 'Package saved.'
+    await api('/v1/owner/packages/', { method: 'POST', body: data })
     resetPackageForm()
-    flash(message)
+    flash('Package saved.')
     await loadAll()
   } catch (caught) {
     error.value = caught.message
@@ -403,9 +388,10 @@ onMounted(loadAll)
         <template v-else-if="section === 'packages'">
           <section ref="packageEditor" class="owner-panel owner-editor-panel">
             <div class="panel-heading">
-              <div><p>{{ isEditingPackage ? 'Editing package' : 'New package' }}</p><h2>{{ isEditingPackage ? 'Update betslip' : 'Add a betslip' }}</h2></div>
-              <PhPencilSimple v-if="isEditingPackage" :size="22" /><PhPlus v-else :size="22" />
+              <div><p>{{ cloneSourceName ? 'New package from clone' : 'New package' }}</p><h2>{{ cloneSourceName ? `Clone ${cloneSourceName}` : 'Add a betslip' }}</h2></div>
+              <PhPlus :size="22" />
             </div>
+            <p v-if="cloneSourceName" class="measurement-note">Reusable details were copied. Review the new closing time, code, betslip link and both images before saving. The clone starts inactive and has no purchases or payment history.</p>
             <form class="owner-form package-entry-form" @submit.prevent="savePackage">
               <div class="owner-editor-grid">
                 <div class="owner-form-fields">
@@ -428,17 +414,15 @@ onMounted(loadAll)
                   <AdminMediaUploader
                     id="package-cover-photo"
                     v-model="packageFile"
-                    :existing-url="existingCoverUrl"
                     label="Cover photo"
-                    :help="isEditingPackage ? 'This is the public package-card image. Choose replace only to change it.' : 'One JPG, PNG or WebP image. This appears publicly on the package card.'"
+                    help="One JPG, PNG or WebP image. This appears publicly on the package card."
                     :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
                   />
                   <AdminMediaUploader
                     id="package-paid-image"
                     v-model="paidPackageFile"
-                    :existing-url="existingPaidImageUrl"
                     label="Paid package image"
-                    :help="isEditingPackage ? 'This private image appears with the code and link after payment. Choose replace only to change it.' : 'One JPG, PNG or WebP image. Customers see it only after payment is confirmed.'"
+                    help="One JPG, PNG or WebP image. Customers see it only after payment is confirmed."
                     :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
                   />
                 </div>
@@ -447,8 +431,7 @@ onMounted(loadAll)
               <div class="package-form-footer">
                 <label class="admin-toggle"><input v-model="packageForm.is_active" type="checkbox"><span></span><b>Active and visible</b></label>
                 <div class="package-form-actions">
-                  <button v-if="isEditingPackage" type="button" class="owner-secondary-button" :disabled="saving" @click="resetPackageForm">Cancel</button>
-                  <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : isEditingPackage ? 'Update package' : 'Save package' }}</button>
+                  <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : 'Save package' }}</button>
                 </div>
               </div>
             </form>
@@ -461,14 +444,14 @@ onMounted(loadAll)
               <table class="package-admin-table">
                 <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                  <tr v-for="plan in packages" :key="plan.id" :class="{ 'is-editing': editingPackageId === plan.id }">
+                  <tr v-for="plan in packages" :key="plan.id">
                     <td><div class="package-table-photo" :style="plan.image_url ? { backgroundImage: `url(${plan.image_url})` } : {}"><PhPackage v-if="!plan.image_url" :size="18" /></div></td>
                     <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
                     <td><label class="admin-toggle compact" :title="plan.is_active ? 'Deactivate package' : 'Activate package'"><input :checked="plan.is_active" type="checkbox" @change="togglePackage(plan, 'is_active')"><span></span><b>{{ plan.is_active ? 'ON' : 'OFF' }}</b></label></td>
                     <td><a :href="plan.betslip_link" target="_blank" rel="noopener">Open link</a></td><td><code>{{ plan.code }}</code></td>
                     <td>
                       <div class="package-row-actions">
-                        <button type="button" class="package-edit-button" :aria-label="`Edit ${plan.name}`" @click="editPackage(plan)"><PhPencilSimple :size="16" /> Edit</button>
+                        <button type="button" class="package-clone-button" :aria-label="`Clone ${plan.name}`" title="Clone as a new package" @click="clonePackage(plan)"><PhCopy :size="16" /> Clone</button>
                         <button type="button" class="icon-button danger" :aria-label="`Delete ${plan.name}`" title="Delete package" @click="requestDelete(plan.name, `/v1/owner/packages/${plan.id}/`)"><PhTrash :size="17" /></button>
                       </div>
                     </td>
