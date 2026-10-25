@@ -18,7 +18,6 @@ const requestToken = ref('')
 const requestTokenAmount = ref(null)
 const password = ref('')
 const wallet = computed(() => data.value?.wallet || {})
-const isOwnerWallet = computed(() => props.endpoint === '/v1/owner')
 const showProviderBalance = computed(() => props.endpoint !== '/v1/owner')
 const money = (value) => `UGX ${Number(value || 0).toLocaleString('en-UG')}`
 const date = (value) => value ? new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'
@@ -85,9 +84,7 @@ onMounted(load)
         <form @submit.prevent="requestPayout">
           <PhWallet :size="25" />
           <h3>Request payout</h3>
-          <p>Destination: {{ data.destination }}. This number is server-managed and cannot be changed from a dashboard.</p>
-          <p v-if="isOwnerWallet">A payout alert with the amount, destination, reference, device and connection details is emailed to both the owner and developer.</p>
-          <p>{{ data.execution_mode === 'immediate' ? 'Approved requests are sent to Relworx immediately.' : 'Requests reserve funds until live execution is enabled.' }}</p>
+          <p>Destination: {{ data.destination }}</p>
           <label>Amount (UGX)<input v-model="amount" type="number" required :min="data.minimum_payout" :max="wallet.available" placeholder="Enter amount"></label>
           <small>Allowed: {{ money(data.minimum_payout) }} to {{ money(data.maximum_payout) }}</small>
           <button class="use-balance" type="button" @click="amount = Math.max(0, Math.floor((showProviderBalance ? Math.min(Number(wallet.available || 0), Number(data.provider_balance || 0)) : Number(wallet.available || 0)) - 1500))">Use maximum after UGX 1,500 fee</button>
