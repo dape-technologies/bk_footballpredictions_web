@@ -43,7 +43,6 @@ const packages = ref([])
 const payments = ref([])
 const paymentReport = ref({ summary: {}, by_status: [], by_provider: [], by_package: [], failure_categories: [] })
 const performance = ref({ summary: {}, by_package: [], unsettled: 0 })
-const paymentAlerts = ref([])
 const selectedPayment = ref(null)
 const paymentFilters = reactive({ search: '', status: '', failure_category: '', from: '', to: '' })
 const wins = ref([])
@@ -124,9 +123,8 @@ async function loadAll() {
       api('/v1/owner/customers/'),
       api('/v1/owner/payments/report/'),
       api('/v1/owner/performance/'),
-      api('/v1/owner/payment-alerts/?open=true'),
     ])
-    ;[metrics.value, packages.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value, paymentAlerts.value] = data
+    ;[metrics.value, packages.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value] = data
   } catch (caught) {
     error.value = caught.message
   } finally {
@@ -140,10 +138,9 @@ async function loadPaymentOperations() {
   try {
     const query = paymentQuery()
     const suffix = query ? `?${query}` : ''
-    ;[payments.value, paymentReport.value, paymentAlerts.value] = await Promise.all([
+    ;[payments.value, paymentReport.value] = await Promise.all([
       api(`/v1/owner/payments/${suffix}`),
       api(`/v1/owner/payments/report/${suffix}`),
-      api('/v1/owner/payment-alerts/?open=true'),
     ])
   } catch (caught) {
     error.value = caught.message
@@ -155,14 +152,6 @@ async function loadPaymentOperations() {
 async function openPayment(payment) {
   try { selectedPayment.value = await api(`/v1/owner/payments/${payment.id}/`) }
   catch (caught) { error.value = caught.message }
-}
-
-async function resolveAlert(alert) {
-  try {
-    await api(`/v1/owner/payment-alerts/${alert.id}/resolve/`, { method: 'POST' })
-    flash('Payment alert resolved.')
-    await loadPaymentOperations()
-  } catch (caught) { error.value = caught.message }
 }
 
 function flash(text) {
@@ -552,18 +541,7 @@ onMounted(loadAll)
           <section class="owner-kpis payment-report-kpis" aria-label="Filtered payment report">
             <article><div class="owner-kpi-heading"><span>Attempts</span><i><PhCreditCard :size="20" /></i></div><strong>{{ paymentReport.summary?.attempts || 0 }}</strong><small>{{ percent(paymentReport.summary?.success_rate) }} confirmed</small></article>
             <article><div class="owner-kpi-heading"><span>Gross revenue</span><i><PhMoneyWavy :size="20" /></i></div><strong>{{ money(paymentReport.summary?.gross_revenue) }}</strong><small>UGX confirmed</small></article>
-            <article><div class="owner-kpi-heading"><span>Needs review</span><i><PhWarningCircle :size="20" /></i></div><strong>{{ paymentReport.summary?.needs_review || 0 }}</strong><small>{{ paymentAlerts.length }} open alerts</small></article>
-          </section>
-
-          <section v-if="paymentAlerts.length" class="owner-panel payment-alert-panel">
-            <div class="panel-heading"><div><p>Payment alerts</p><h2>Operations needing attention</h2></div><PhWarningCircle :size="24" /></div>
-            <div class="payment-alert-list">
-              <article v-for="alert in paymentAlerts" :key="alert.id">
-                <span :class="['alert-severity', alert.severity]">{{ alert.severity }}</span>
-                <div><strong>{{ alert.title }}</strong><p>{{ alert.message }}</p><small>{{ formatDate(alert.created_at) }}</small></div>
-                <button type="button" class="owner-secondary-button" @click="resolveAlert(alert)">Resolve</button>
-              </article>
-            </div>
+            <article><div class="owner-kpi-heading"><span>Needs review</span><i><PhWarningCircle :size="20" /></i></div><strong>{{ paymentReport.summary?.needs_review || 0 }}</strong><small>Transactions requiring investigation</small></article>
           </section>
 
           <section class="owner-panel">

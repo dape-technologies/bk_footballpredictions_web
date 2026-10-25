@@ -588,14 +588,6 @@
 .performance-table-wrap { margin-top: 1rem; }
 .payment-report-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1rem; }
 
-.payment-alert-panel { margin-bottom: 1rem; border-color: #ecc9a0; }
-.payment-alert-list { display: grid; gap: .6rem; }
-.payment-alert-list article { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .85rem; padding: .85rem; border: 1px solid #ece0d0; border-radius: .55rem; background: #fffaf2; }
-.payment-alert-list p { margin: .2rem 0; color: #555b60; font-size: .74rem; line-height: 1.45; }
-.payment-alert-list small { color: #7a7d80; font-size: .64rem; }
-.alert-severity { padding: .28rem .42rem; border-radius: .3rem; background: #fff0c8; color: #775600; font-size: .58rem; font-weight: 900; text-transform: uppercase; }
-.alert-severity.critical { background: #f8dfdc; color: #7f2922; }
-.alert-severity.info { background: #e6eef6; color: #274f72; }
 
 .payment-filters { display: grid; grid-template-columns: 1.6fr repeat(4, minmax(8rem, 1fr)) auto; align-items: end; gap: .65rem; margin-bottom: 1rem; padding: .8rem; border: 1px solid #e4e4e0; border-radius: .65rem; background: #fafaf8; }
 .payment-filters label { display: grid; gap: .35rem; }
@@ -772,7 +764,6 @@
   .package-form-actions > * { flex: 1; }
   .payment-filters { grid-template-columns: 1fr; }
   .report-kpis { grid-template-columns: 1fr; }
-  .payment-alert-list article { grid-template-columns: 1fr; }
   .payment-detail-grid { grid-template-columns: 1fr; }
   .payment-detail-actions { align-items: stretch; flex-direction: column; }
   .payment-detail-actions > * { width: 100%; }
