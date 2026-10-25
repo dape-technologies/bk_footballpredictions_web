@@ -552,7 +552,6 @@ onMounted(loadAll)
           <section class="owner-kpis payment-report-kpis" aria-label="Filtered payment report">
             <article><div class="owner-kpi-heading"><span>Attempts</span><i><PhCreditCard :size="20" /></i></div><strong>{{ paymentReport.summary?.attempts || 0 }}</strong><small>{{ percent(paymentReport.summary?.success_rate) }} confirmed</small></article>
             <article><div class="owner-kpi-heading"><span>Gross revenue</span><i><PhMoneyWavy :size="20" /></i></div><strong>{{ money(paymentReport.summary?.gross_revenue) }}</strong><small>UGX confirmed</small></article>
-            <article><div class="owner-kpi-heading"><span>Provider fees</span><i><PhReceipt :size="20" /></i></div><strong>{{ money(paymentReport.summary?.provider_fees) }}</strong><small>UGX reported by Relworx</small></article>
             <article><div class="owner-kpi-heading"><span>Needs review</span><i><PhWarningCircle :size="20" /></i></div><strong>{{ paymentReport.summary?.needs_review || 0 }}</strong><small>{{ paymentAlerts.length }} open alerts</small></article>
           </section>
 

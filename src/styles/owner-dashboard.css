@@ -586,7 +586,7 @@
 .report-kpis small { display: block; margin-top: .35rem; color: var(--owner-muted); font-size: .67rem; line-height: 1.4; }
 .measurement-note { margin: 1rem 0 0; color: var(--owner-muted); font-size: .7rem; line-height: 1.55; }
 .performance-table-wrap { margin-top: 1rem; }
-.payment-report-kpis { margin-bottom: 1rem; }
+.payment-report-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1rem; }
 
 .payment-alert-panel { margin-bottom: 1rem; border-color: #ecc9a0; }
 .payment-alert-list { display: grid; gap: .6rem; }
