@@ -1,5 +1,5 @@
 <script setup>
-import { inject, onMounted, ref } from 'vue'
+import { inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PhArrowRight, PhClock, PhMoneyWavy } from '@phosphor-icons/vue'
 import { api } from '../api/client'
@@ -15,13 +15,34 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const openDialog = inject('openAppDialog')
+let refreshTimer
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'To be announced'
 
+async function loadPackages(silent = false) {
+  try {
+    packages.value = await api('/v1/packages/')
+    error.value = ''
+  } catch (err) {
+    if (!silent) error.value = err.message
+  } finally {
+    if (!silent) loading.value = false
+  }
+}
+
+function refreshWhenVisible() {
+  if (!document.hidden && !submitting.value) loadPackages(true)
+}
+
 onMounted(async () => {
-  try { packages.value = await api('/v1/packages/') }
-  catch (err) { error.value = err.message }
-  finally { loading.value = false }
+  await loadPackages()
+  refreshTimer = window.setInterval(refreshWhenVisible, 30_000)
+  document.addEventListener('visibilitychange', refreshWhenVisible)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
 })
 
 async function requestAccess(plan) {

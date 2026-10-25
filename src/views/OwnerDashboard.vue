@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   PhArrowClockwise,
   PhChartLineUp,
@@ -58,6 +58,8 @@ const existingCoverUrl = ref('')
 const existingPaidImageUrl = ref('')
 const winFile = ref(null)
 const confirmation = ref(null)
+const backgroundRefreshing = ref(false)
+let liveRefreshTimer
 
 const sections = [
   { id: 'overview', label: 'Overview', note: 'Operating pulse', icon: PhHouse },
@@ -76,6 +78,7 @@ const overviewTiles = computed(() => [
   { label: 'Active packages', value: metrics.value.active_packages, note: 'Visible for purchase', icon: PhPackage },
   { label: 'Pending payments', value: metrics.value.pending_payments, note: 'Need confirmation', icon: PhHourglassMedium },
   { label: 'Paid', value: metrics.value.paid_payments, note: 'Completed payments', icon: PhCreditCard },
+  { label: 'Wallet balance', value: `UGX ${money(metrics.value.wallet?.available)}`, note: 'Available for payout', icon: PhWallet, money: true },
 ])
 const emptyPackage = () => ({
   name: '',
@@ -130,6 +133,34 @@ async function loadAll() {
   } finally {
     loading.value = false
   }
+}
+
+async function refreshLiveData() {
+  if (document.hidden || loading.value || saving.value || backgroundRefreshing.value) return
+  backgroundRefreshing.value = true
+  try {
+    metrics.value = await api('/v1/owner/dashboard/')
+    if (section.value === 'packages') packages.value = await api('/v1/owner/packages/')
+    if (section.value === 'recent-wins') wins.value = await api('/v1/owner/recent-wins/')
+    if (section.value === 'members') customers.value = await api('/v1/owner/customers/')
+    if (section.value === 'payments') {
+      const query = paymentQuery()
+      const suffix = query ? `?${query}` : ''
+      ;[payments.value, paymentReport.value] = await Promise.all([
+        api(`/v1/owner/payments/${suffix}`),
+        api(`/v1/owner/payments/report/${suffix}`),
+      ])
+    }
+  } catch {
+    // Keep the last usable data during a transient background connection error.
+    // The manual refresh button still reports errors when attention is needed.
+  } finally {
+    backgroundRefreshing.value = false
+  }
+}
+
+function refreshWhenVisible() {
+  if (!document.hidden) refreshLiveData()
 }
 
 async function loadPaymentOperations() {
@@ -320,7 +351,16 @@ async function confirmDelete() {
   }
 }
 
-onMounted(loadAll)
+onMounted(async () => {
+  await loadAll()
+  liveRefreshTimer = window.setInterval(refreshLiveData, 15_000)
+  document.addEventListener('visibilitychange', refreshWhenVisible)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(liveRefreshTimer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
+})
 </script>
 
 <template>
@@ -375,10 +415,10 @@ onMounted(loadAll)
         <div v-if="loading" class="owner-loading"><span></span><p>Syncing the control room…</p></div>
 
         <template v-else-if="section === 'overview'">
-          <section class="owner-kpis" aria-label="Business overview">
-            <article v-for="tile in overviewTiles" :key="tile.label">
+          <section class="owner-kpis overview-kpis" aria-label="Business overview">
+            <article v-for="tile in overviewTiles" :key="tile.label" :class="{ 'wallet-balance-card': tile.money }">
               <div class="owner-kpi-heading"><span>{{ tile.label }}</span><i><component :is="tile.icon" :size="20" weight="duotone" /></i></div>
-              <strong>{{ tile.value ?? 0 }}</strong><small>{{ tile.note }}</small>
+              <strong :class="{ 'wallet-balance-value': tile.money }">{{ tile.value ?? 0 }}</strong><small>{{ tile.note }}</small>
             </article>
           </section>
 

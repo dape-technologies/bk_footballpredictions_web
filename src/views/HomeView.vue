@@ -1,5 +1,5 @@
 <script setup>
-import { inject, onMounted, onBeforeUnmount, ref } from 'vue'
+import { inject, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { PhArrowRight, PhCheckCircle, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { trackPackageView } from '../telemetry'
@@ -17,7 +17,8 @@ const submitting = ref(null)
 const auth = useAuthStore()
 const openDialog = inject('openAppDialog')
 let packageObserver
-onBeforeUnmount(() => packageObserver?.disconnect())
+let contentRefreshTimer
+const viewedPackageIds = new Set()
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -56,7 +57,13 @@ async function requestAccess(plan) {
   finally { submitting.value = null }
 }
 
-onMounted(async () => {
+function observePackageCards() {
+  document.querySelectorAll('[data-package-id]').forEach((element) => {
+    if (!viewedPackageIds.has(Number(element.dataset.packageId))) packageObserver?.observe(element)
+  })
+}
+
+async function loadPublicContent(initial = false) {
   const resources = [
     ['predictions', predictions, '/v1/predictions/'],
     ['packages', packages, '/v1/packages/'],
@@ -67,16 +74,38 @@ onMounted(async () => {
 
   results.forEach((result, index) => {
     const [name, target] = resources[index]
-    if (result.status === 'fulfilled') target.value = result.value
-    else errors.value[name] = result.reason?.message || 'This section could not be loaded.'
+    if (result.status === 'fulfilled') {
+      target.value = result.value
+      errors.value[name] = ''
+    } else if (initial) errors.value[name] = result.reason?.message || 'This section could not be loaded.'
   })
-  loading.value = false
+  if (initial) loading.value = false
+  await nextTick()
+  observePackageCards()
+}
+
+function refreshPublicContent() {
+  if (!document.hidden) loadPublicContent(false)
+}
+
+onMounted(async () => {
   packageObserver = new IntersectionObserver((entries) => {
     entries.filter((entry) => entry.isIntersecting).forEach((entry) => {
-      trackPackageView(Number(entry.target.dataset.packageId)); packageObserver.unobserve(entry.target)
+      const packageId = Number(entry.target.dataset.packageId)
+      viewedPackageIds.add(packageId)
+      trackPackageView(packageId)
+      packageObserver.unobserve(entry.target)
     })
   }, { threshold: 0.5 })
-  requestAnimationFrame(() => document.querySelectorAll('[data-package-id]').forEach((element) => packageObserver?.observe(element)))
+  await loadPublicContent(true)
+  contentRefreshTimer = window.setInterval(refreshPublicContent, 30_000)
+  document.addEventListener('visibilitychange', refreshPublicContent)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(contentRefreshTimer)
+  document.removeEventListener('visibilitychange', refreshPublicContent)
+  packageObserver?.disconnect()
 })
 </script>
 

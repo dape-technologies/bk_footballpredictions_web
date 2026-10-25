@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { PhArrowClockwise, PhPaperPlaneTilt, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 
@@ -17,17 +17,24 @@ const notice = ref('')
 const requestToken = ref('')
 const requestTokenAmount = ref(null)
 const password = ref('')
+let refreshTimer
 const wallet = computed(() => data.value?.wallet || {})
 const showProviderBalance = computed(() => props.endpoint !== '/v1/owner')
 const money = (value) => `UGX ${Number(value || 0).toLocaleString('en-UG')}`
 const date = (value) => value ? new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'
 
-async function load() {
-  loading.value = true
-  error.value = ''
+async function load(silent = false) {
+  if (!silent) {
+    loading.value = true
+    error.value = ''
+  }
   try { data.value = await api(`${props.endpoint}/wallet/`) }
-  catch (caught) { error.value = caught.message }
-  finally { loading.value = false }
+  catch (caught) { if (!silent) error.value = caught.message }
+  finally { if (!silent) loading.value = false }
+}
+
+function refreshWhenVisible() {
+  if (!document.hidden && !saving.value) load(true)
 }
 
 async function requestPayout() {
@@ -62,12 +69,21 @@ async function cancel(item) {
   } catch (caught) { error.value = caught.message }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  refreshTimer = window.setInterval(refreshWhenVisible, 15_000)
+  document.addEventListener('visibilitychange', refreshWhenVisible)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
+})
 </script>
 
 <template>
   <section :class="['wallet-panel', { 'wallet-panel--dark': theme === 'dark' }]">
-    <header><div><p>Relworx settlement</p><h2>{{ title }}</h2></div><button type="button" aria-label="Refresh wallet" :disabled="loading" @click="load"><PhArrowClockwise :size="19" /></button></header>
+    <header><div><p>Relworx settlement</p><h2>{{ title }}</h2></div><button type="button" aria-label="Refresh wallet" :disabled="loading" @click="load()"><PhArrowClockwise :size="19" /></button></header>
     <p v-if="error" class="wallet-message error" role="alert">{{ error }}</p>
     <p v-if="notice" class="wallet-message success" role="status">{{ notice }}</p>
     <p v-if="loading" class="wallet-empty">Loading wallet balances...</p>

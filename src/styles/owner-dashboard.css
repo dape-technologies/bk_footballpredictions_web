@@ -269,6 +269,11 @@
   margin-bottom: 1.1rem;
 }
 
+.overview-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.wallet-balance-card { border-color: #b7ce68 !important; background: #f7faed !important; }
+.wallet-balance-card .owner-kpi-heading i { background: #111; color: var(--owner-accent); }
+.owner-kpis .wallet-balance-value { font-size: clamp(1.45rem, 2.2vw, 2.25rem); letter-spacing: -.055em; }
+
 .owner-kpis article {
   min-height: 9.5rem;
   display: flex;

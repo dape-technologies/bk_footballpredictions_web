@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { PhChartLineUp, PhCrown, PhDownloadSimple, PhHouse, PhSignOut, PhUserCircle, PhWhatsappLogo } from '@phosphor-icons/vue'
+import { registerSW } from 'virtual:pwa-register'
 import BrandMark from './components/BrandMark.vue'
 import AppDialog from './components/AppDialog.vue'
 import { api } from './api/client'
@@ -21,6 +22,9 @@ const profileMenu = ref(null)
 const purchases = ref([])
 const profileLoading = ref(false)
 const profileError = ref('')
+const updateAvailable = ref(false)
+let updateServiceWorker = () => Promise.resolve()
+let updateCheckTimer
 const paidPurchases = computed(() => purchases.value.filter((purchase) => purchase.is_paid))
 
 const navigation = computed(() => [
@@ -85,6 +89,10 @@ async function installApp() {
   canInstall.value = false
 }
 
+function applyAppUpdate() {
+  updateServiceWorker(true)
+}
+
 provide('openAppDialog', openDialog)
 
 watch(() => route.meta.dialog, (mode) => {
@@ -100,9 +108,19 @@ onMounted(() => {
   document.addEventListener('pointerdown', closeProfileFromOutside)
   document.addEventListener('keydown', closeProfileFromKeyboard)
   window.addEventListener('appinstalled', () => { canInstall.value = false }, { once: true })
+  updateServiceWorker = registerSW({
+    immediate: true,
+    onNeedRefresh() { updateAvailable.value = true },
+    onRegisteredSW(_serviceWorkerUrl, registration) {
+      updateCheckTimer = window.setInterval(() => {
+        if (!document.hidden) registration?.update()
+      }, 60_000)
+    },
+  })
 })
 
 onBeforeUnmount(() => {
+  window.clearInterval(updateCheckTimer)
   window.removeEventListener('beforeinstallprompt', captureInstall)
   document.removeEventListener('pointerdown', closeProfileFromOutside)
   document.removeEventListener('keydown', closeProfileFromKeyboard)
@@ -112,6 +130,11 @@ onBeforeUnmount(() => {
 <template>
   <div :class="['min-h-[100dvh] bg-[var(--app-bg)] text-[var(--app-text)]', { 'app-safe-bottom md:pb-0': showPublicShell }]">
     <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <aside v-if="updateAvailable" class="fixed inset-x-3 top-3 z-[1000] mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-[var(--app-accent)]/45 bg-[#101713] p-3 text-[#f2f7f3] shadow-[0_18px_55px_rgba(0,0,0,.48)] sm:p-4" role="status">
+      <div class="min-w-0 flex-1"><strong class="block text-sm">A new BK version is ready</strong><span class="mt-1 block text-xs text-white/55">Refresh when you are not entering payment or form details.</span></div>
+      <button type="button" class="shrink-0 rounded-xl bg-[var(--app-accent)] px-4 py-2 text-sm font-extrabold text-[var(--app-accent-ink)]" @click="applyAppUpdate">Refresh now</button>
+    </aside>
 
     <header v-if="showPublicShell" class="app-safe-top sticky top-0 z-40 border-b border-[var(--app-line)] bg-[#080d0a]/92 backdrop-blur-xl">
       <div class="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
