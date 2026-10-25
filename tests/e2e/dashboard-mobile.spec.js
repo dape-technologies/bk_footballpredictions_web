@@ -7,7 +7,7 @@ for (const role of ['owner', 'developer']) {
       const path = new URL(route.request().url()).pathname
       let result = []
       if (path.endsWith('/auth/me/')) result = { id: 1, full_name: 'BK Account', is_owner: role === 'owner', is_developer: role === 'developer' }
-      else if (path.endsWith('/auth/security/')) result = { notification_emails: ['owner@example.test', 'developer@example.test'], sessions: [], owner_payout_destination: role === 'developer' ? '+256*****8576' : undefined, current_owner_otps: role === 'developer' ? [{ id: 7, code: '731904', purpose: 'password', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300000).toISOString() }] : undefined }
+      else if (path.endsWith('/auth/security/')) result = { notification_emails: ['owner@example.test', 'developer@example.test'], sessions: [], current_owner_otps: role === 'developer' ? [{ id: 7, code: '731904', purpose: 'password', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300000).toISOString() }] : undefined }
       else if (path.endsWith('/analytics/')) result = { finance: { audit: {}, today: {}, by_package: {}, recent_payments: [] }, commission: {}, users: {}, packages: {}, charts: {} }
       else if (path.endsWith('/dashboard/')) result = {}
       else if (path.endsWith('/report/')) result = { summary: {} }
@@ -22,16 +22,16 @@ for (const role of ['owner', 'developer']) {
     await securityButton.click()
     await expect(page.getByRole('heading', { name: 'Security and devices' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign out of this device' })).toBeVisible()
+    await expect(page.getByText(/server-managed and cannot be changed/i)).toBeVisible()
     if (role === 'developer') {
       await expect(page.getByRole('button', { name: 'Open Security' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Current owner OTPs' })).toBeVisible()
       await expect(page.getByText('731904')).toBeVisible()
-      await expect(page.getByRole('option', { name: 'Change owner payout number' })).toHaveCount(1)
+      await expect(page.getByRole('option', { name: /payout number/i })).toHaveCount(0)
     } else {
       await expect(page.getByRole('heading', { name: 'Current owner OTPs' })).toHaveCount(0)
       await expect(page.getByRole('option', { name: /payout number/i })).toHaveCount(0)
-      await expect(page.getByText(/restricted to the developer account/i)).toBeVisible()
       const walletButton = page.locator('nav').getByRole('button', { name: /Wallet/ })
       await walletButton.scrollIntoViewIfNeeded()
       await walletButton.click()

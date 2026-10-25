@@ -85,7 +85,7 @@ onMounted(load)
         <form @submit.prevent="requestPayout">
           <PhWallet :size="25" />
           <h3>Request payout</h3>
-          <p>Destination: {{ data.destination }}. {{ isOwnerWallet ? 'Contact the developer to change the owner payout number.' : 'Change payout numbers securely from Security.' }}</p>
+          <p>Destination: {{ data.destination }}. This number is server-managed and cannot be changed from a dashboard.</p>
           <p v-if="isOwnerWallet">A payout alert with the amount, destination, reference, device and connection details is emailed to both the owner and developer.</p>
           <p>{{ data.execution_mode === 'immediate' ? 'Approved requests are sent to Relworx immediately.' : 'Requests reserve funds until live execution is enabled.' }}</p>
           <label>Amount (UGX)<input v-model="amount" type="number" required :min="data.minimum_payout" :max="wallet.available" placeholder="Enter amount"></label>

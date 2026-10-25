@@ -4,11 +4,9 @@ import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const data = ref(null)
-const action = ref('password')
 const password = ref('')
 const otp = ref('')
 const newPassword = ref('')
-const destination = ref('')
 const notice = ref('')
 const error = ref('')
 const busy = ref(false)
@@ -16,9 +14,9 @@ async function load() { data.value = await api('/v1/auth/security/') }
 async function submit(requestOtp = false) {
   busy.value = true; error.value = ''; notice.value = ''
   try {
-    const result = await api('/v1/auth/security/', { method: 'POST', body: JSON.stringify({ action: action.value, request_otp: requestOtp, password: password.value, otp: otp.value, new_password: newPassword.value, destination: destination.value }) })
+    const result = await api('/v1/auth/security/', { method: 'POST', body: JSON.stringify({ action: 'password', request_otp: requestOtp, password: password.value, otp: otp.value, new_password: newPassword.value }) })
     notice.value = result.message
-    if (!requestOtp) { password.value = ''; otp.value = ''; newPassword.value = ''; destination.value = '' }
+    if (!requestOtp) { password.value = ''; otp.value = ''; newPassword.value = '' }
     await load()
   } catch (caught) { error.value = caught.message }
   finally { busy.value = false }
@@ -34,13 +32,9 @@ onMounted(async () => { try { await load() } catch (caught) { error.value = caug
     <header><p>Account protection</p><h2>Security and devices</h2></header>
     <button type="button" @click="auth.logout">Sign out of this device</button>
     <p v-if="error" role="alert" class="error">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
-    <article v-if="data"><h3>Verified security changes</h3><p>Codes for password and payout-number changes are sent to {{ data.notification_emails.join(' and ') }}. Sessions expire after 20 minutes of inactivity or eight hours.</p>
+    <article v-if="data"><h3>Change password</h3><p>Password-change codes are sent to {{ data.notification_emails.join(' and ') }}. Payout numbers are server-managed and cannot be changed from either dashboard. Sessions expire after 20 minutes of inactivity or eight hours.</p>
       <form @submit.prevent="submit(false)">
-        <label>Action<select v-model="action"><option value="password">Change password</option><option v-if="auth.isDeveloper" value="owner_destination">Change owner payout number</option><option v-if="auth.isDeveloper" value="destination">Change developer payout number</option></select></label>
-        <p v-if="auth.isOwner">Owner payout-number changes are restricted to the developer account. Contact the developer when the registered number needs to change.</p>
-        <p v-if="action === 'owner_destination'">Current owner payout destination: {{ data.owner_payout_destination || 'Not configured' }}</p>
-        <label v-if="action === 'destination' || action === 'owner_destination'">New mobile-money number<input v-model="destination" inputmode="tel" autocomplete="tel" required></label>
-        <label v-if="action === 'password'">New password<input v-model="newPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+        <label>New password<input v-model="newPassword" type="password" autocomplete="new-password" minlength="12" required></label>
         <label>Current password<input v-model="password" type="password" autocomplete="current-password"></label>
         <button type="button" :disabled="busy || !password" @click="submit(true)">Email verification code</button>
         <label>Verification code<input v-model="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
