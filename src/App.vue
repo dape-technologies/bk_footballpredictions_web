@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import { PhChartLineUp, PhCrown, PhDownloadSimple, PhHouse, PhSignOut, PhUserCircle } from '@phosphor-icons/vue'
+import { PhChartLineUp, PhCrown, PhDownloadSimple, PhHouse, PhSignOut, PhUserCircle, PhWhatsappLogo } from '@phosphor-icons/vue'
 import BrandMark from './components/BrandMark.vue'
 import AppDialog from './components/AppDialog.vue'
 import { api } from './api/client'
@@ -161,9 +161,13 @@ onBeforeUnmount(() => {
 
     <main id="main-content"><RouterView /></main>
 
-    <button v-if="showPublicShell && canInstall" type="button" class="fixed right-4 bottom-24 z-30 flex items-center gap-2 rounded-2xl bg-[var(--app-accent)] px-4 py-3 text-sm font-bold text-[var(--app-accent-ink)] shadow-[0_14px_35px_rgba(86,110,34,.35)] active:scale-[.98] md:hidden" @click="installApp">
+    <button v-if="showPublicShell && canInstall" type="button" class="fixed bottom-24 left-4 z-30 flex items-center gap-2 rounded-2xl bg-[var(--app-accent)] px-4 py-3 text-sm font-bold text-[var(--app-accent-ink)] shadow-[0_14px_35px_rgba(86,110,34,.35)] active:scale-[.98] md:hidden" @click="installApp">
       <PhDownloadSimple :size="18" /> Install BK
     </button>
+
+    <a v-if="showPublicShell" href="https://whatsapp.com/channel/0029VbCaG0RAYlUKBhmbmV0O" target="_blank" rel="noopener noreferrer" class="fixed right-4 z-30 grid size-12 place-items-center rounded-2xl border border-[#43d16f]/35 bg-[#102b19] text-[#63e88b] shadow-[0_14px_35px_rgba(0,0,0,.4)] transition hover:-translate-y-1 hover:border-[#63e88b] hover:bg-[#153820] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#63e88b] active:scale-[.97] max-md:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] md:bottom-6 md:right-6" aria-label="Follow BK Football Predictions on WhatsApp">
+      <PhWhatsappLogo :size="26" weight="fill" />
+    </a>
 
     <nav v-if="showPublicShell" class="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--app-line)] bg-[#080d0a]/96 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="App navigation">
       <div class="mx-auto grid h-[4.75rem] max-w-lg grid-cols-4">
@@ -182,7 +186,7 @@ onBeforeUnmount(() => {
     <footer v-if="showPublicShell" id="about" class="border-t border-[var(--app-line)] bg-[#080d0a]">
       <div class="mx-auto flex max-w-7xl flex-col justify-between gap-6 px-4 py-8 text-sm text-[var(--app-muted)] sm:px-6 md:flex-row md:items-center lg:px-8">
         <div><BrandMark compact /><p class="mt-3">Independent football analysis for adults 18+. Play responsibly.</p></div>
-        <div class="flex flex-wrap items-center gap-5"><button type="button" @click="scrollToSection('packages')">VIP access</button><button type="button" @click="scrollToSection('results')">Recent wins</button><span>© {{ new Date().getFullYear() }} BK</span></div>
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-3"><a href="https://whatsapp.com/channel/0029VbCaG0RAYlUKBhmbmV0O" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 font-semibold text-[var(--app-text)] hover:text-[#63e88b]"><PhWhatsappLogo :size="19" weight="fill" /> WhatsApp channel</a><button type="button" @click="scrollToSection('packages')">VIP access</button><button type="button" @click="scrollToSection('results')">Recent wins</button><span>© {{ new Date().getFullYear() }} BK</span><span class="w-full border-t border-white/8 pt-3 text-xs text-white/35 md:w-auto md:border-0 md:pt-0">Powered by <strong class="font-bold text-white/65">Dape Technologies</strong></span></div>
       </div>
     </footer>
 

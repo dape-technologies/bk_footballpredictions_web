@@ -1,6 +1,6 @@
 <script setup>
 import { inject, onMounted, onBeforeUnmount, ref } from 'vue'
-import { PhArrowRight, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
+import { PhArrowRight, PhCheckCircle, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { trackPackageView } from '../telemetry'
 import HeroWordmark from '../components/HeroWordmark.vue'
@@ -22,6 +22,16 @@ const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : 'To be announced'
+const formatResultDate = (value) => value
+  ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
+  : 'Recently settled'
+
+function winDetails(win, index) {
+  const caption = String(win.caption || '').replace(/\s+/g, ' ').trim()
+  const ticketUrl = caption.match(/https?:\/\/[^\s]+/i)?.[0] || ''
+  const title = caption.replace(ticketUrl, '').replace(/[\s—–|-]+$/, '').trim()
+  return { title: title || `Winning result ${String(index + 1).padStart(2, '0')}`, ticketUrl }
+}
 
 function scrollTo(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -151,19 +161,26 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section id="results" class="scroll-mt-16 border-y border-[var(--app-line)] bg-[var(--app-surface)]">
-      <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div class="mb-9 flex items-end justify-between gap-5"><div><p class="text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Results</p><h2 class="mt-3 text-4xl font-extrabold tracking-[-.05em] sm:text-5xl">Recent wins.</h2></div><span class="hidden text-sm font-semibold text-[var(--app-muted)] sm:block">{{ wins.length }} published</span></div>
+    <section id="results" class="scroll-mt-16 border-y border-[var(--app-line)] bg-[#0a0e0b]">
+      <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
+        <div class="mb-10 grid gap-6 border-b border-white/10 pb-8 md:grid-cols-[1fr_auto] md:items-end"><div><p class="flex items-center gap-2 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]"><PhCheckCircle :size="16" weight="fill" /> Settled proof</p><h2 class="mt-3 text-balance text-4xl font-extrabold tracking-[-.055em] sm:text-6xl">Recent wins, clearly documented.</h2><p class="mt-4 max-w-2xl text-pretty leading-7 text-white/50">A public record of recently settled tickets from the BK desk. Open shared tickets where available.</p></div><div class="flex items-baseline gap-2 md:block md:text-right"><strong class="numbers text-4xl font-black text-white">{{ wins.length }}</strong><span class="text-xs font-bold uppercase tracking-[.14em] text-white/35 md:block">published results</span></div></div>
         <div v-if="errors.wins" class="break-words border border-red-400/30 bg-red-500/10 p-5 text-red-200">Recent wins are unavailable. {{ errors.wins }}</div>
-        <div v-else-if="loading" class="mobile-card-rail flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-3"><div v-for="n in 3" :key="n" class="h-80 w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-[var(--app-surface-2)] md:w-auto"></div></div>
-        <div v-else-if="wins.length" class="mobile-card-rail flex gap-4 overflow-x-auto pb-3 md:grid md:auto-rows-[20rem] md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-3">
-          <article v-for="(win,index) in wins" :key="win.id" :class="['group relative h-80 w-[min(84vw,22rem)] shrink-0 snap-start overflow-hidden bg-[#0b100d] md:w-auto', index===0 && wins.length>1 ? 'md:row-span-2 md:h-auto lg:col-span-2' : '']">
-            <img v-if="win.image_url" :src="win.image_url" :alt="win.caption" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.025]">
-            <div v-else class="grid h-full place-items-center text-[var(--app-accent)]"><PhTrophy :size="64" weight="duotone" /></div>
-            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-6 pt-20 text-white"><p class="max-w-2xl text-lg font-bold leading-6">{{ win.caption }}</p><time class="mt-2 block text-[10px] font-bold uppercase tracking-[.14em] text-white/45">{{ new Date(win.settled_at).toLocaleDateString('en-UG') }}</time></div>
+        <div v-else-if="loading" class="grid gap-px border border-white/10 bg-white/10 lg:grid-cols-12"><div v-for="n in 3" :key="n" :class="['h-96 animate-pulse bg-[var(--app-surface-2)]', n===1 ? 'lg:col-span-7 lg:row-span-2 lg:h-auto' : 'lg:col-span-5 lg:h-72']"></div></div>
+        <div v-else-if="wins.length" class="grid gap-px border border-white/10 bg-white/10 lg:grid-cols-12">
+          <article v-for="(win,index) in wins" :key="win.id" :class="['group min-w-0 overflow-hidden bg-[#0b100d]', index===0 ? (wins.length > 1 ? 'lg:col-span-7 lg:row-span-2' : 'lg:col-span-12') : 'lg:col-span-5 lg:grid lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]']">
+            <figure :class="['relative overflow-hidden bg-[#060806]', index===0 ? 'aspect-[4/3]' : 'aspect-[4/3] lg:aspect-auto lg:min-h-72']">
+              <img v-if="win.image_url" :src="win.image_url" :alt="winDetails(win,index).title" loading="lazy" decoding="async" class="h-full w-full object-contain transition duration-500 group-hover:scale-[1.015]">
+              <div v-else class="grid h-full place-items-center text-[var(--app-accent)]"><PhTrophy :size="64" weight="duotone" /></div>
+              <span class="absolute left-4 top-4 inline-flex items-center gap-1.5 bg-[#0b100d]/90 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[.14em] text-[var(--app-accent)] backdrop-blur"><PhCheckCircle :size="13" weight="fill" /> Settled</span>
+            </figure>
+            <div :class="['flex min-w-0 flex-col border-t border-white/10 p-5 text-white sm:p-6', index>0 ? 'lg:border-l lg:border-t-0' : '']">
+              <div class="flex items-center justify-between gap-4"><span class="numbers text-[10px] font-bold uppercase tracking-[.14em] text-white/35">Result {{ String(index + 1).padStart(2, '0') }}</span><time class="shrink-0 text-[10px] font-semibold text-white/40">{{ formatResultDate(win.settled_at) }}</time></div>
+              <h3 :class="['mt-4 break-words font-extrabold leading-tight tracking-[-.035em]', index===0 ? 'text-2xl sm:text-3xl' : 'text-xl']">{{ winDetails(win,index).title }}</h3>
+              <a v-if="winDetails(win,index).ticketUrl" :href="winDetails(win,index).ticketUrl" target="_blank" rel="noopener noreferrer" class="mt-7 inline-flex w-fit items-center gap-2 border-b border-[var(--app-accent)] pb-1 text-xs font-extrabold uppercase tracking-[.1em] text-[var(--app-accent)] transition hover:gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]">View shared ticket <PhArrowRight :size="15" /></a>
+            </div>
           </article>
         </div>
-        <div v-else class="grid min-h-48 place-items-center border border-dashed border-[var(--app-line)] px-6 text-center text-[var(--app-muted)]">No recent wins yet.</div>
+        <div v-else class="grid min-h-48 place-items-center border border-dashed border-white/15 px-6 text-center text-white/45">No recent wins yet.</div>
       </div>
     </section>
 
