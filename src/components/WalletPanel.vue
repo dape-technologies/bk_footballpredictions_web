@@ -17,15 +17,8 @@ const notice = ref('')
 const requestToken = ref('')
 const requestTokenAmount = ref(null)
 const password = ref('')
-const otp = ref('')
-async function sendOtp() {
-  error.value = ''
-  try {
-    const response = await api(`${props.endpoint}/payout-requests/`, { method: 'POST', body: JSON.stringify({ request_otp: true, password: password.value, amount: Number(amount.value) }) })
-    notice.value = response.message
-  } catch (caught) { error.value = caught.message }
-}
 const wallet = computed(() => data.value?.wallet || {})
+const isOwnerWallet = computed(() => props.endpoint === '/v1/owner')
 const showProviderBalance = computed(() => props.endpoint !== '/v1/owner')
 const money = (value) => `UGX ${Number(value || 0).toLocaleString('en-UG')}`
 const date = (value) => value ? new Date(value).toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'
@@ -50,13 +43,13 @@ async function requestPayout() {
   notice.value = ''
   try {
     const response = await api(`${props.endpoint}/payout-requests/`, {
-      method: 'POST', body: JSON.stringify({ amount: payoutAmount, request_token: requestToken.value, otp: otp.value, password: password.value }),
+      method: 'POST', body: JSON.stringify({ amount: payoutAmount, request_token: requestToken.value, password: password.value }),
     })
     notice.value = response.message
     amount.value = ''
     requestToken.value = ''
     requestTokenAmount.value = null
-    otp.value = ''; password.value = ''
+    password.value = ''
     await load()
   } catch (caught) { error.value = caught.message }
   finally { saving.value = false }
@@ -92,15 +85,14 @@ onMounted(load)
         <form @submit.prevent="requestPayout">
           <PhWallet :size="25" />
           <h3>Request payout</h3>
-          <p>Destination: {{ data.destination }}. Change this securely from Security in your dashboard.</p>
+          <p>Destination: {{ data.destination }}. {{ isOwnerWallet ? 'Contact the developer to change the owner payout number.' : 'Change payout numbers securely from Security.' }}</p>
+          <p v-if="isOwnerWallet">A payout alert with the amount, destination, reference, device and connection details is emailed to both the owner and developer.</p>
           <p>{{ data.execution_mode === 'immediate' ? 'Approved requests are sent to Relworx immediately.' : 'Requests reserve funds until live execution is enabled.' }}</p>
           <label>Amount (UGX)<input v-model="amount" type="number" required :min="data.minimum_payout" :max="wallet.available" placeholder="Enter amount"></label>
           <small>Allowed: {{ money(data.minimum_payout) }} to {{ money(data.maximum_payout) }}</small>
           <button class="use-balance" type="button" @click="amount = Math.max(0, Math.floor((showProviderBalance ? Math.min(Number(wallet.available || 0), Number(data.provider_balance || 0)) : Number(wallet.available || 0)) - 1500))">Use maximum after UGX 1,500 fee</button>
-          <label>Password<input v-model="password" type="password" autocomplete="current-password"></label>
-          <button type="button" :disabled="data.payouts_frozen || !amount || !password" @click="sendOtp">Email withdrawal code</button>
-          <label>Verification code<input v-model="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
-          <button type="submit" :disabled="saving || data.payouts_frozen || !otp || !data.destination_configured || Number(amount) > Number(wallet.available)"><PhPaperPlaneTilt :size="17" />{{ saving ? 'Submitting...' : 'Submit payout' }}</button>
+          <label>Confirm account password<input v-model="password" required type="password" autocomplete="current-password"></label>
+          <button type="submit" :disabled="saving || data.payouts_frozen || !password || !data.destination_configured || Number(amount) > Number(wallet.available)"><PhPaperPlaneTilt :size="17" />{{ saving ? 'Submitting...' : 'Submit payout' }}</button>
           <p v-if="!data.destination_configured" class="config-note">The payout destination is not configured on the server.</p>
           <p v-else-if="!data.payouts_enabled" class="config-note">Relworx live payouts are currently server-disabled.</p>
         </form>

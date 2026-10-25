@@ -18,7 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
   async function authenticate(path, credentials) {
     const result = await api(path, { method: 'POST', body: JSON.stringify(credentials) })
-    if (!result?.otp_required) user.value = result
+    user.value = result
     ready.value = true
     return result
   }

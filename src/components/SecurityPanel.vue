@@ -18,7 +18,7 @@ async function submit(requestOtp = false) {
   try {
     const result = await api('/v1/auth/security/', { method: 'POST', body: JSON.stringify({ action: action.value, request_otp: requestOtp, password: password.value, otp: otp.value, new_password: newPassword.value, destination: destination.value }) })
     notice.value = result.message
-    if (!requestOtp) { password.value = ''; otp.value = ''; newPassword.value = '' }
+    if (!requestOtp) { password.value = ''; otp.value = ''; newPassword.value = ''; destination.value = '' }
     await load()
   } catch (caught) { error.value = caught.message }
   finally { busy.value = false }
@@ -34,10 +34,12 @@ onMounted(async () => { try { await load() } catch (caught) { error.value = caug
     <header><p>Account protection</p><h2>Security and devices</h2></header>
     <button type="button" @click="auth.logout">Sign out of this device</button>
     <p v-if="error" role="alert" class="error">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
-    <article v-if="data"><h3>Verified security changes</h3><p>Codes are sent to {{ data.notification_emails.join(' and ') }}. Sessions expire after 20 minutes of inactivity or eight hours.</p>
+    <article v-if="data"><h3>Verified security changes</h3><p>Codes for password and payout-number changes are sent to {{ data.notification_emails.join(' and ') }}. Sessions expire after 20 minutes of inactivity or eight hours.</p>
       <form @submit.prevent="submit(false)">
-        <label>Action<select v-model="action"><option value="password">Change password</option><option value="destination">Change my payout number</option></select></label>
-        <label v-if="action === 'destination'">New mobile-money number<input v-model="destination" inputmode="tel" autocomplete="tel" required></label>
+        <label>Action<select v-model="action"><option value="password">Change password</option><option v-if="auth.isDeveloper" value="owner_destination">Change owner payout number</option><option v-if="auth.isDeveloper" value="destination">Change developer payout number</option></select></label>
+        <p v-if="auth.isOwner">Owner payout-number changes are restricted to the developer account. Contact the developer when the registered number needs to change.</p>
+        <p v-if="action === 'owner_destination'">Current owner payout destination: {{ data.owner_payout_destination || 'Not configured' }}</p>
+        <label v-if="action === 'destination' || action === 'owner_destination'">New mobile-money number<input v-model="destination" inputmode="tel" autocomplete="tel" required></label>
         <label v-if="action === 'password'">New password<input v-model="newPassword" type="password" autocomplete="new-password" minlength="12" required></label>
         <label>Current password<input v-model="password" type="password" autocomplete="current-password"></label>
         <button type="button" :disabled="busy || !password" @click="submit(true)">Email verification code</button>

@@ -8,33 +8,15 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-const form = reactive({ phone: '', password: '', otp: '' })
+const form = reactive({ phone: '', password: '' })
 const loading = ref(false)
 const error = ref('')
-const notice = ref('')
-const challengeToken = ref('')
-
-function restart() {
-  challengeToken.value = ''
-  form.otp = ''
-  notice.value = ''
-  error.value = ''
-}
 
 async function submit() {
   error.value = ''
   loading.value = true
   try {
-    const payload = challengeToken.value
-      ? { challenge_token: challengeToken.value, otp: form.otp }
-      : { phone: form.phone, password: form.password }
-    const result = await auth.adminLogin(payload)
-    if (result.otp_required) {
-      challengeToken.value = result.challenge_token
-      notice.value = result.message
-      form.otp = ''
-      return
-    }
+    const result = await auth.adminLogin({ phone: form.phone, password: form.password })
     if (!result.is_owner) {
       await auth.endSession()
       throw new Error('Product Owner access is required.')
@@ -75,24 +57,19 @@ async function submit() {
           <span class="grid size-12 place-items-center rounded-2xl bg-[#c7ff45] text-[#07110d]"><PhLockKey :size="25" weight="duotone" /></span>
           <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[#c7ff45]">Owner sign in</p>
           <h2 class="mt-3 text-4xl font-black tracking-[-.055em] sm:text-5xl">Welcome back.</h2>
-          <p class="mt-4 leading-7 text-white/45">{{ challengeToken ? 'Enter the six-digit code sent to the owner security contacts.' : 'Use the private phone number and password assigned to your Product Owner account.' }}</p>
+          <p class="mt-4 leading-7 text-white/45">Use the private phone number and password assigned to your Product Owner account. A sign-in alert is emailed to the owner and developer.</p>
 
           <form class="mt-9 grid gap-5" @submit.prevent="submit">
-            <label v-if="!challengeToken" class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Owner phone number
+            <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Owner phone number
               <input v-model.trim="form.phone" required autocomplete="username" inputmode="tel" placeholder="07XXXXXXXX" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-base font-medium normal-case tracking-normal text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
             </label>
-            <label v-if="!challengeToken" class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Password
+            <label class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Password
               <input v-model="form.password" required minlength="4" type="password" autocomplete="current-password" placeholder="Enter your password" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-base font-medium normal-case tracking-normal text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
             </label>
-            <label v-else class="grid gap-2 text-xs font-bold uppercase tracking-[.1em] text-white/60">Login verification code
-              <input v-model.trim="form.otp" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" class="min-h-13 rounded-none border border-white/15 bg-white/[.04] px-4 text-center font-mono text-xl font-bold tracking-[.25em] text-white outline-none placeholder:text-white/20 focus:border-[#c7ff45]" />
-            </label>
-            <p v-if="notice" role="status" class="border border-[#c7ff45]/20 bg-[#c7ff45]/10 p-3.5 text-sm leading-6 text-white/70">{{ notice }}</p>
             <p v-if="error" role="alert" class="border border-red-400/25 bg-red-500/10 p-3.5 text-sm text-red-200">{{ error }}</p>
             <button type="submit" class="mt-1 flex min-h-13 items-center justify-center gap-2 bg-[#c7ff45] px-5 font-extrabold text-[#07110d] transition hover:bg-[#d6ff77] active:scale-[.99] disabled:cursor-wait disabled:opacity-60" :disabled="loading">
-              {{ loading ? 'Verifying access…' : challengeToken ? 'Verify and enter' : 'Continue securely' }} <PhArrowRight v-if="!loading" :size="18" />
+              {{ loading ? 'Signing in…' : 'Sign in securely' }} <PhArrowRight v-if="!loading" :size="18" />
             </button>
-            <button v-if="challengeToken" type="button" class="min-h-11 border border-white/15 bg-transparent text-sm font-bold text-white/60 hover:text-white" @click="restart">Use password again</button>
           </form>
 
           <p class="mt-7 border-t border-white/10 pt-6 text-sm leading-6 text-white/35">Customer and ordinary staff accounts cannot access this area. Contact the system owner if your credentials need to be reset.</p>
