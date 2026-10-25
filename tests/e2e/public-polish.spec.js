@@ -18,6 +18,12 @@ test('public shell exposes WhatsApp, footer credit and readable recent wins on m
   })
 
   await page.goto('/')
+  const firstWordmarkLetter = page.locator('.morph-letter').first()
+  const initialWordmarkPath = await firstWordmarkLetter.getAttribute('d')
+  await expect.poll(() => firstWordmarkLetter.getAttribute('d'), {
+    message: 'The BK Football Predictions wordmark should morph on mobile',
+    timeout: 5000,
+  }).not.toBe(initialWordmarkPath)
   await expect(page.getByRole('link', { name: 'Follow BK Football Predictions on WhatsApp' })).toHaveAttribute('href', 'https://whatsapp.com/channel/0029VbCaG0RAYlUKBhmbmV0O')
   await expect(page.getByText('Powered by')).toBeVisible()
   await expect(page.getByText('Dape Technologies')).toBeVisible()

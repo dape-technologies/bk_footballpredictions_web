@@ -53,13 +53,13 @@ function shapeFor(letter, index) {
 }
 
 onMounted(async () => {
-  if (!matchMedia('(min-width: 768px) and (prefers-reduced-motion: no-preference)').matches) return
+  if (!matchMedia('(prefers-reduced-motion: no-preference)').matches) return
   const [{ gsap }, { MorphSVGPlugin }] = await Promise.all([import('gsap'), import('gsap/MorphSVGPlugin')])
   if (destroyed) return
   gsap.registerPlugin(MorphSVGPlugin)
   mediaContext = gsap.matchMedia()
 
-  mediaContext.add('(min-width: 768px) and (prefers-reduced-motion: no-preference)', () => {
+  mediaContext.add('(prefers-reduced-motion: no-preference)', () => {
     const context = gsap.context(() => {
       const letters = gsap.utils.toArray('.morph-letter')
 
