@@ -388,6 +388,7 @@
 .owner-form textarea:focus,
 .owner-form select:focus { border-color: #111; background: #fff; box-shadow: 0 0 0 3px rgb(17 17 17 / .12); }
 .owner-form textarea { min-height: 7rem; resize: vertical; line-height: 1.55; }
+.owner-form input:disabled { cursor: not-allowed; background: #eeeeea; color: #555; }
 .owner-form label > small { justify-self: end; color: var(--owner-muted); font-size: .67rem; font-weight: 650; }
 
 .package-form-footer {
@@ -650,6 +651,10 @@
 .win-admin-list img { width: 5.5rem; height: 4.4rem; border-radius: .45rem; object-fit: cover; }
 .win-admin-list p { margin: 0 0 .35rem; color: #111; font-size: .78rem; line-height: 1.5; }
 .win-admin-list small { color: #73787d; font-size: .68rem; }
+.win-admin-list article.free-pick-record { grid-template-columns: 5.5rem minmax(10rem, 1fr) auto; }
+.free-pick-record > div:nth-child(2) small { display: block; margin-top: .25rem; }
+.free-pick-record-status { width: max-content; padding: .25rem .4rem; border-radius: .3rem; background: #ececea; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.free-pick-record-status.live { background: #e3f3dc; color: #285726; }
 
 .member-table { min-width: 44rem; }
 .member-cell {

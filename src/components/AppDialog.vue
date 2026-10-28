@@ -53,6 +53,7 @@ let pollTimer = null
 const registering = computed(() => props.mode === 'register')
 const isAccount = computed(() => props.mode === 'account')
 const isFreeTip = computed(() => props.mode === 'free-tip')
+const freeTipLive = computed(() => Boolean(freeTip.value && new Date(freeTip.value.closes_at).getTime() > clock.value))
 const isPayment = computed(() => props.mode === 'payment')
 const paymentPending = computed(() => ['submitted', 'pending'].includes(payment.value?.status))
 const paymentRetryable = computed(() => ['failed', 'expired', 'cancelled'].includes(payment.value?.status))
@@ -93,8 +94,7 @@ async function loadDialogData() {
   if (isFreeTip.value) {
     loading.value = true
     try {
-      const picks = await api('/v1/predictions/')
-      freeTip.value = picks.find((pick) => !pick.locked) || null
+      freeTip.value = await api('/v1/free-pick/')
     } catch (err) { error.value = err.message }
     finally { loading.value = false }
   }
@@ -174,7 +174,7 @@ async function signOut() {
 watch(() => props.mode, () => { loadDialogData() })
 
 onMounted(() => {
-  clockTimer = setInterval(() => { clock.value = Date.now() }, 30000)
+  clockTimer = setInterval(() => { clock.value = Date.now() }, 1000)
   document.body.style.overflow = 'hidden'
   window.addEventListener('keydown', onKeydown)
   loadDialogData()
@@ -196,19 +196,24 @@ onBeforeUnmount(() => {
 
         <template v-if="isFreeTip">
           <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhMoneyWavy :size="27" weight="duotone" /></span>
-          <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Open earning insight</p>
-          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:pr-0 sm:text-4xl">A free earning angle from the BK desk.</h2>
+          <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">BK free pick</p>
+          <h2 v-if="freeTipLive" class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:pr-0 sm:text-4xl">Today’s free pick is live.</h2>
+          <h2 v-else class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:pr-0 sm:text-4xl">The next free pick is being prepared.</h2>
           <div v-if="loading" class="mt-7 h-52 animate-pulse rounded-2xl bg-white/5"></div>
           <p v-else-if="error" class="mt-7 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ error }}</p>
-          <article v-else-if="freeTip" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5">
-            <div class="flex min-w-0 flex-wrap items-center justify-between gap-3 text-xs font-bold text-white/45"><span class="min-w-0 break-words">{{ freeTip.competition }}</span><span class="inline-flex shrink-0 items-center gap-1.5 text-[var(--app-accent)]"><PhCheckCircle :size="15" /> Open</span></div>
-            <h3 class="mt-5 break-words text-xl font-extrabold tracking-[-.04em] sm:text-2xl">{{ freeTip.home_team }} <span class="text-white/35">vs</span> {{ freeTip.away_team }}</h3>
-            <p class="mt-4 text-sm text-white/45">{{ freeTip.market }}</p>
-            <div class="mt-1 flex min-w-0 flex-wrap items-end justify-between gap-3"><strong class="min-w-0 break-words text-lg sm:text-xl">{{ freeTip.selection }}</strong><b class="shrink-0 text-3xl numbers">{{ freeTip.odds }}</b></div>
-            <p v-if="freeTip.analysis" class="mt-5 border-t border-white/10 pt-4 text-sm leading-6 text-white/60">{{ freeTip.analysis }}</p>
+          <article v-else-if="freeTipLive" class="mt-7 overflow-hidden rounded-2xl border border-[var(--app-accent)]/30 bg-[#0a0f0c]">
+            <img :src="freeTip.reveal_image_url" :alt="`${freeTip.name} free-pick betslip`" class="max-h-[42dvh] w-full bg-black/30 object-contain" decoding="async">
+            <div class="border-t border-white/10 p-5">
+              <div class="flex min-w-0 flex-wrap items-center justify-between gap-3"><div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-[.14em] text-white/35">{{ freeTip.package_type }}</p><h3 class="mt-1 break-words text-xl font-extrabold tracking-[-.04em] sm:text-2xl">{{ freeTip.name }}</h3></div><span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--app-accent)] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[var(--app-accent-ink)]"><PhCheckCircle :size="14" weight="fill" /> Live</span></div>
+              <div class="mt-5 grid grid-cols-2 gap-3 border-y border-white/10 py-4 text-sm"><div><span class="block text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-base font-black text-[var(--app-accent)]">{{ freeTip.code }}</code></div><div><span class="block text-[10px] font-bold uppercase tracking-wider text-white/35">Availability</span><strong class="mt-1 flex items-center gap-1.5"><PhClock :size="15" />{{ countdown(freeTip.closes_at) }}</strong></div></div>
+              <a :href="freeTip.betslip_link" target="_blank" rel="noopener noreferrer" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98]">Open betslip <PhArrowRight :size="18" /></a>
+            </div>
           </article>
-          <p v-else class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-white/50">The next open insight is being prepared.</p>
-          <button type="button" class="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98]" @click="emit('close')">Continue to VIP access <PhArrowRight :size="18" /></button>
+          <div v-else class="mt-7 rounded-2xl border border-dashed border-white/15 bg-white/[.025] p-6">
+            <p class="font-bold text-white/80">No free pick is live right now.</p>
+            <p class="mt-2 text-sm leading-6 text-white/50">Our team is reviewing the strongest available opportunity. Check back soon. We only publish when the value is worth your attention.</p>
+          </div>
+          <button type="button" class="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-5 font-extrabold text-white/75 hover:border-white/30 hover:text-white active:scale-[.98]" @click="emit('close')">{{ freeTipLive ? 'Done' : 'Got it' }}</button>
         </template>
 
         <template v-else-if="isPayment">

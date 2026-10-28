@@ -1,12 +1,13 @@
 <script setup>
-import { inject, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, inject, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
 import { PhArrowRight, PhCheckCircle, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { trackPackageView } from '../telemetry'
 import HeroWordmark from '../components/HeroWordmark.vue'
 import { useAuthStore } from '../stores/auth'
 
-const predictions = ref([])
+const freePick = ref(null)
+const freePickSeen = ref(false)
 const packages = ref([])
 const wins = ref([])
 const testimonials = ref([])
@@ -18,7 +19,9 @@ const auth = useAuthStore()
 const openDialog = inject('openAppDialog')
 let packageObserver
 let contentRefreshTimer
+let freePickExpiryTimer
 const viewedPackageIds = new Set()
+const freePickLive = computed(() => Boolean(freePick.value && new Date(freePick.value.closes_at).getTime() > Date.now()))
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -36,6 +39,27 @@ function winDetails(win, index) {
 
 function scrollTo(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scheduleFreePickExpiry() {
+  window.clearTimeout(freePickExpiryTimer)
+  if (!freePick.value) return
+  const remaining = new Date(freePick.value.closes_at).getTime() - Date.now()
+  if (remaining <= 0) {
+    freePick.value = null
+    return
+  }
+  const seenKey = `bk-free-pick-seen-${freePick.value.id}`
+  freePickSeen.value = sessionStorage.getItem(seenKey) === 'true'
+  freePickExpiryTimer = window.setTimeout(scheduleFreePickExpiry, Math.min(remaining, 2_147_483_647))
+}
+
+function revealFreePick() {
+  if (freePickLive.value) {
+    freePickSeen.value = true
+    sessionStorage.setItem(`bk-free-pick-seen-${freePick.value.id}`, 'true')
+  }
+  openDialog?.('free-tip')
 }
 
 async function requestAccess(plan) {
@@ -65,7 +89,7 @@ function observePackageCards() {
 
 async function loadPublicContent(initial = false) {
   const resources = [
-    ['predictions', predictions, '/v1/predictions/'],
+    ['freePick', freePick, '/v1/free-pick/'],
     ['packages', packages, '/v1/packages/'],
     ['wins', wins, '/v1/recent-wins/'],
     ['testimonials', testimonials, '/v1/testimonials/'],
@@ -80,6 +104,7 @@ async function loadPublicContent(initial = false) {
     } else if (initial) errors.value[name] = result.reason?.message || 'This section could not be loaded.'
   })
   if (initial) loading.value = false
+  scheduleFreePickExpiry()
   await nextTick()
   observePackageCards()
 }
@@ -104,6 +129,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.clearInterval(contentRefreshTimer)
+  window.clearTimeout(freePickExpiryTimer)
   document.removeEventListener('visibilitychange', refreshPublicContent)
   packageObserver?.disconnect()
 })
@@ -117,9 +143,9 @@ onBeforeUnmount(() => {
       <picture><source media="(max-width: 767px)" srcset="/illustrations/mobile/income-hero-visual.webp"><img src="/illustrations/income-hero-visual.webp" fetchpriority="high" decoding="async" width="1920" height="720" alt="" class="hero-income-art pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-55 mix-blend-screen" aria-hidden="true" /></picture>
 
       <div class="relative mx-auto max-w-7xl px-4 pb-20 pt-7 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8 lg:pb-28">
-        <button type="button" class="group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]" @click="openDialog?.('free-tip')">
+        <button type="button" :class="['free-pick-cta group inline-flex w-fit items-center gap-3 rounded-full border border-white/20 bg-black/30 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[.16em] text-white/75 backdrop-blur-sm transition hover:border-[var(--app-accent)]/65 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)]', { live: freePickLive, 'free-pick-attention': freePickLive && !freePickSeen }]" @click="revealFreePick">
           <span class="grid size-7 place-items-center rounded-full bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhLightning :size="14" weight="fill" /></span>
-          <span><span class="block text-[9px] text-white/45">Today's earning angle</span>Reveal the free pick</span>
+          <span><span class="block text-[9px]" :class="freePickLive ? 'text-[var(--app-accent)]' : 'text-white/45'">{{ freePickLive ? 'Live now' : "Today's earning angle" }}</span>Reveal the free pick</span>
           <PhArrowRight class="ml-1 text-[var(--app-accent)] transition group-hover:translate-x-1" :size="15" />
         </button>
 
@@ -136,7 +162,7 @@ onBeforeUnmount(() => {
 
           <div class="mt-7 flex w-full max-w-md flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row">
             <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-6 font-extrabold text-[var(--app-accent-ink)] transition hover:-translate-y-0.5 hover:bg-[var(--app-accent-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)] active:scale-[.98]" @click="scrollTo('packages')">View earning packages <PhArrowRight :size="18" /></button>
-            <button type="button" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--app-accent)]/65 bg-black/20 px-6 font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[var(--app-accent)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)] active:scale-[.98]" @click="openDialog?.('free-tip')">Reveal the free pick <PhLightning :size="18" /></button>
+            <button type="button" :class="['free-pick-cta inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--app-accent)]/65 bg-black/20 px-6 font-extrabold text-white transition hover:-translate-y-0.5 hover:bg-[var(--app-accent)]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--app-accent)] active:scale-[.98]', { live: freePickLive, 'free-pick-attention': freePickLive && !freePickSeen }]" @click="revealFreePick">Reveal the free pick <span v-if="freePickLive" class="free-pick-live-label">Live</span><PhLightning :size="18" /></button>
           </div>
 
           <div class="mt-9 grid w-full max-w-2xl grid-cols-3 border-y border-white/10 py-5 text-left sm:border-0 sm:py-0">
@@ -249,6 +275,25 @@ onBeforeUnmount(() => {
 
 .hero-income-art { animation: income-drift 9s ease-in-out infinite; }
 
+.free-pick-cta.live {
+  border-color: rgb(199 255 69 / .9);
+  background: rgb(35 49 16 / .78);
+  box-shadow: 0 0 0 1px rgb(199 255 69 / .12), 0 0 28px rgb(168 201 87 / .2);
+}
+
+.free-pick-live-label {
+  border-radius: 999px;
+  background: var(--app-accent);
+  padding: .2rem .45rem;
+  color: var(--app-accent-ink);
+  font-size: .58rem;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.free-pick-attention { animation: free-pick-signal 10s ease-in-out infinite; transform-origin: center; }
+
 .package-stage::before {
   position: absolute;
   inset: 5.1rem 0 auto;
@@ -274,8 +319,18 @@ onBeforeUnmount(() => {
   50% { transform: translate3d(0, -5px, 0) scale(1.015); }
 }
 
+@keyframes free-pick-signal {
+  0%, 7%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  1.2% { transform: translate3d(-3px, 0, 0) rotate(-.6deg) scale(1.015); }
+  2.4% { transform: translate3d(3px, 0, 0) rotate(.6deg) scale(1.02); }
+  3.6% { transform: translate3d(-2px, 0, 0) rotate(-.4deg) scale(1.015); }
+  4.8% { transform: translate3d(2px, 0, 0) rotate(.4deg) scale(1.01); }
+  6% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-income-art { animation: none; }
+  .free-pick-attention { animation: none; }
 }
 
 @media (max-width: 767px) {
