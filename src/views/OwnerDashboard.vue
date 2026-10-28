@@ -10,6 +10,7 @@ import {
   PhEye,
   PhHouse,
   PhHourglassMedium,
+  PhLightning,
   PhMoneyWavy,
   PhPackage,
   PhPencilSimple,
@@ -40,6 +41,7 @@ const error = ref('')
 const notice = ref('')
 const metrics = ref({})
 const packages = ref([])
+const freePicks = ref([])
 const payments = ref([])
 const paymentReport = ref({ summary: {}, by_status: [], by_provider: [], by_package: [], failure_categories: [] })
 const performance = ref({ summary: {}, by_package: [], unsettled: 0 })
@@ -56,6 +58,9 @@ const packageSlugSeed = ref('')
 const editingPackageId = ref(null)
 const existingCoverUrl = ref('')
 const existingPaidImageUrl = ref('')
+const freePickFile = ref(null)
+const editingFreePickId = ref(null)
+const existingFreePickImageUrl = ref('')
 const winFile = ref(null)
 const confirmation = ref(null)
 const backgroundRefreshing = ref(false)
@@ -64,6 +69,7 @@ let liveRefreshTimer
 const sections = [
   { id: 'overview', label: 'Overview', note: 'Operating pulse', icon: PhHouse },
   { id: 'packages', label: 'Packages', note: 'Betslip catalogue', icon: PhPackage },
+  { id: 'free-picks', label: 'Free picks', note: 'Public reveal', icon: PhLightning },
   { id: 'recent-wins', label: 'Recent wins', note: 'Photos and captions', icon: PhTrophy },
   { id: 'payments', label: 'Payments', note: 'Track transactions', icon: PhCreditCard },
   { id: 'wallet', label: 'Wallet', note: 'Balances and payouts', icon: PhWallet },
@@ -93,6 +99,17 @@ const emptyPackage = () => ({
 })
 const packageForm = reactive(emptyPackage())
 const isEditingPackage = computed(() => editingPackageId.value !== null)
+const emptyFreePick = () => ({
+  name: '',
+  package_type: 'Accumulator',
+  win_probability: 70,
+  closes_at: '',
+  betslip_link: '',
+  code: '',
+  is_active: true,
+})
+const freePickForm = reactive(emptyFreePick())
+const isEditingFreePick = computed(() => editingFreePickId.value !== null)
 const winForm = reactive({ caption: '' })
 const money = (value) => new Intl.NumberFormat('en-UG').format(value || 0)
 const percent = (value) => `${Number(value || 0).toFixed(1)}%`
@@ -121,13 +138,14 @@ async function loadAll() {
     const data = await Promise.all([
       api('/v1/owner/dashboard/'),
       api('/v1/owner/packages/'),
+      api('/v1/owner/free-picks/'),
       api('/v1/owner/payments/'),
       api('/v1/owner/recent-wins/'),
       api('/v1/owner/customers/'),
       api('/v1/owner/payments/report/'),
       api('/v1/owner/performance/'),
     ])
-    ;[metrics.value, packages.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value] = data
+    ;[metrics.value, packages.value, freePicks.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value] = data
   } catch (caught) {
     error.value = caught.message
   } finally {
@@ -141,6 +159,7 @@ async function refreshLiveData() {
   try {
     metrics.value = await api('/v1/owner/dashboard/')
     if (section.value === 'packages') packages.value = await api('/v1/owner/packages/')
+    if (section.value === 'free-picks') freePicks.value = await api('/v1/owner/free-picks/')
     if (section.value === 'recent-wins') wins.value = await api('/v1/owner/recent-wins/')
     if (section.value === 'members') customers.value = await api('/v1/owner/customers/')
     if (section.value === 'payments') {
@@ -292,6 +311,70 @@ async function togglePackage(plan, field) {
       body: JSON.stringify({ [field]: !plan[field] }),
     })
     flash('Package updated.')
+    await loadAll()
+  } catch (caught) {
+    error.value = caught.message
+  }
+}
+
+function resetFreePickForm() {
+  Object.assign(freePickForm, emptyFreePick())
+  freePickFile.value = null
+  editingFreePickId.value = null
+  existingFreePickImageUrl.value = ''
+}
+
+function editFreePick(item) {
+  Object.assign(freePickForm, {
+    name: item.name,
+    package_type: item.package_type,
+    win_probability: item.win_probability,
+    closes_at: toDatetimeLocal(item.closes_at),
+    betslip_link: item.betslip_link,
+    code: item.code,
+    is_active: item.is_active,
+  })
+  freePickFile.value = null
+  editingFreePickId.value = item.id
+  existingFreePickImageUrl.value = item.reveal_image_url || ''
+  error.value = ''
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function saveFreePick() {
+  error.value = ''
+  if (!isEditingFreePick.value && !freePickFile.value) {
+    error.value = 'Free-pick reveal image: this field is required.'
+    return
+  }
+  saving.value = true
+  try {
+    const data = new FormData()
+    Object.entries(freePickForm).forEach(([key, value]) => {
+      data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
+    })
+    if (freePickFile.value) data.append('reveal_image', freePickFile.value)
+    const endpoint = isEditingFreePick.value
+      ? `/v1/owner/free-picks/${editingFreePickId.value}/`
+      : '/v1/owner/free-picks/'
+    await api(endpoint, { method: isEditingFreePick.value ? 'PATCH' : 'POST', body: data })
+    flash(isEditingFreePick.value ? 'Free pick updated.' : 'Free pick published.')
+    resetFreePickForm()
+    await loadAll()
+  } catch (caught) {
+    error.value = caught.message
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleFreePick(item) {
+  try {
+    await api(`/v1/owner/free-picks/${item.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: !item.is_active }),
+    })
+    flash('Free pick updated.')
     await loadAll()
   } catch (caught) {
     error.value = caught.message
@@ -476,7 +559,7 @@ onBeforeUnmount(() => {
                     <label><span>Type</span><input v-model.trim="packageForm.package_type" required placeholder="Accumulator"></label>
                   </div>
                   <div class="field-pair">
-                    <label><span>Price (UGX)</span><input v-model="packageForm.price" required min="0" type="number" placeholder="25000"></label>
+                    <label><span>Price (UGX)</span><input v-model="packageForm.price" required min="500" type="number" placeholder="25000"></label>
                     <label><span>Win probability (%)</span><input v-model="packageForm.win_probability" required min="0" max="100" type="number"></label>
                   </div>
                   <div class="field-pair">
@@ -540,6 +623,54 @@ onBeforeUnmount(() => {
               </table>
             </div>
           </section>
+        </template>
+
+        <template v-else-if="section === 'free-picks'">
+          <div class="owner-split">
+            <section class="owner-panel form-panel">
+              <div class="panel-heading"><div><p>{{ isEditingFreePick ? 'Editing free pick' : 'New free pick' }}</p><h2>{{ isEditingFreePick ? `Edit ${freePickForm.name}` : 'Publish a free reveal' }}</h2></div><PhLightning :size="22" /></div>
+              <p class="measurement-note">Free picks are stored separately from paid packages. Activating a new one automatically switches off the previous free pick.</p>
+              <form class="owner-form" @submit.prevent="saveFreePick">
+                <label><span>Name</span><input v-model.trim="freePickForm.name" required placeholder="Today’s free pick"></label>
+                <div class="field-pair">
+                  <label><span>Type</span><input v-model.trim="freePickForm.package_type" required placeholder="Accumulator"></label>
+                  <label><span>Win probability (%)</span><input v-model="freePickForm.win_probability" required min="0" max="100" type="number"></label>
+                </div>
+                <label><span>Closes at</span><input v-model="freePickForm.closes_at" required type="datetime-local"></label>
+                <label><span>Code</span><input v-model.trim="freePickForm.code" required placeholder="BK-FREE-82"></label>
+                <label><span>Betslip link</span><input v-model.trim="freePickForm.betslip_link" required type="url" placeholder="https://..."></label>
+                <AdminMediaUploader
+                  id="free-pick-reveal-image"
+                  v-model="freePickFile"
+                  :existing-url="existingFreePickImageUrl"
+                  label="Reveal image"
+                  :help="isEditingFreePick ? 'Current reveal image retained unless you choose a replacement.' : 'One JPG, PNG or WebP image shown while this free pick is live.'"
+                  :allowed-file-types="['image/jpeg', 'image/png', 'image/webp']"
+                />
+                <label class="admin-toggle"><input v-model="freePickForm.is_active" type="checkbox"><span></span><b>Active and publicly revealable</b></label>
+                <div class="package-form-actions">
+                  <button v-if="isEditingFreePick" type="button" class="owner-secondary-button" :disabled="saving" @click="resetFreePickForm">Cancel</button>
+                  <button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : isEditingFreePick ? 'Update free pick' : 'Publish free pick' }}</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="owner-panel collection-panel">
+              <div class="panel-heading"><div><p>Free-pick history</p><h2>{{ freePicks.length }} records</h2></div></div>
+              <div v-if="!freePicks.length" class="empty-row">No free picks have been uploaded.</div>
+              <div v-else class="win-admin-list">
+                <article v-for="item in freePicks" :key="item.id" class="free-pick-record">
+                  <img :src="item.reveal_image_url" :alt="item.name">
+                  <div><p><strong>{{ item.name }}</strong></p><small>{{ item.package_type }} · closes {{ formatDate(item.closes_at) }}</small><small :class="['free-pick-record-status', { live: item.is_live }]">{{ item.is_live ? 'Live now' : item.is_active ? 'Closed' : 'Inactive' }}</small></div>
+                  <div class="package-row-actions">
+                    <button type="button" class="package-edit-button" @click="editFreePick(item)"><PhPencilSimple :size="16" /> Edit</button>
+                    <button type="button" class="table-action" @click="toggleFreePick(item)">{{ item.is_active ? 'Switch off' : 'Activate' }}</button>
+                    <button type="button" class="icon-button danger" title="Delete free pick" @click="requestDelete(item.name, `/v1/owner/free-picks/${item.id}/`)"><PhTrash :size="17" /></button>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </div>
         </template>
 
         <template v-else-if="section === 'wallet'">
