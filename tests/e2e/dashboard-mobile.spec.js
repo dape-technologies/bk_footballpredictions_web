@@ -8,15 +8,19 @@ for (const role of ['owner', 'developer']) {
       let result = []
       if (path.endsWith('/auth/me/')) result = { id: 1, full_name: 'BK Account', is_owner: role === 'owner', is_developer: role === 'developer' }
       else if (path.endsWith('/auth/security/')) result = { notification_emails: ['owner@example.test', 'developer@example.test'], sessions: [], current_owner_otps: role === 'developer' ? [{ id: 7, code: '731904', purpose: 'password', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300000).toISOString() }] : undefined }
-      else if (path.endsWith('/analytics/')) result = { finance: { audit: {}, today: {}, by_package: {}, recent_payments: [] }, commission: {}, users: {}, packages: {}, charts: {} }
+      else if (path.endsWith('/analytics/')) result = { finance: { audit: {}, today: {}, by_package: {}, recent_payments: [] }, commission: { today_earned: 2750 }, users: {}, packages: {}, charts: {} }
       else if (path.endsWith('/dashboard/')) result = {}
       else if (path.endsWith('/report/')) result = { summary: {} }
       else if (path.endsWith('/performance/')) result = { summary: {}, by_package: [] }
       else if (path.endsWith('/payment-gateway/')) result = { provider: { configured: true, capabilities: {} } }
-      else if (path.endsWith('/wallet/')) result = { provider_balance: 30000, minimum_operating_balance: 1500, minimum_payout: 500, maximum_payout: 5000000, destination: '***1777', destination_configured: true, payouts_enabled: true, payouts_frozen: false, execution_mode: 'immediate', wallet: { available: 10000, reserved: 0, credited: 10000, today_credited: 0 }, requests: [], ledger: [] }
+      else if (path.endsWith('/wallet/')) result = { provider_balance: 30000, minimum_operating_balance: 1500, minimum_payout: 500, maximum_payout: 5000000, destination: '***1777', destination_configured: true, payouts_enabled: true, payouts_frozen: false, execution_mode: 'immediate', wallet: { available: 10000, reserved: 0, credited: 10000, today_credited: 2750 }, requests: [], ledger: [] }
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) })
     })
     await page.goto(`/${role}/dashboard`)
+    if (role === 'developer') {
+      await expect(page.getByText("Today's commission", { exact: true })).toBeVisible()
+      await expect(page.getByText('2,750 UGX', { exact: true })).toBeVisible()
+    }
     const securityButton = page.locator('nav').getByRole('button', { name: /Security/ })
     await securityButton.scrollIntoViewIfNeeded()
     await securityButton.click()
@@ -29,6 +33,11 @@ for (const role of ['owner', 'developer']) {
       await expect(page.getByRole('heading', { name: 'Current owner OTPs' })).toBeVisible()
       await expect(page.getByText('731904')).toBeVisible()
       await expect(page.getByRole('option', { name: /payout number/i })).toHaveCount(0)
+      const walletButton = page.locator('nav').getByRole('button', { name: /Wallet/ })
+      await walletButton.scrollIntoViewIfNeeded()
+      await walletButton.click()
+      await expect(page.getByText("Today's commission", { exact: true })).toBeVisible()
+      await expect(page.getByText('UGX 2,750', { exact: true })).toBeVisible()
     } else {
       await expect(page.getByRole('heading', { name: 'Current owner OTPs' })).toHaveCount(0)
       await expect(page.getByRole('option', { name: /payout number/i })).toHaveCount(0)
