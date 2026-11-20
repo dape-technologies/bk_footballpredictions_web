@@ -93,7 +93,7 @@ onBeforeUnmount(() => {
       <p v-if="showProviderBalance">Relworx balance: {{ data.provider_balance == null ? 'Unavailable — refresh to check' : money(data.provider_balance) }}. Minimum fee allowance: {{ money(data.minimum_operating_balance) }} per withdrawal.</p>
       <p v-else>Each withdrawal keeps the required {{ money(data.minimum_operating_balance) }} provider fee allowance.</p>
       <div class="wallet-metrics">
-        <article v-if="isDeveloperWallet" class="today-commission"><span>Today's commission</span><strong>{{ money(wallet.today_credited) }}</strong><small>Earned since midnight</small></article>
+        <article v-if="isDeveloperWallet" class="today-commission"><span>Today's commission</span><strong>{{ money(wallet.today_earned ?? wallet.today_credited) }}</strong><small>Earned since midnight</small></article>
         <article><span>Available</span><strong>{{ money(wallet.available) }}</strong><small>Ready for payout</small></article>
         <article><span>Reserved</span><strong>{{ money(wallet.reserved) }}</strong><small>Pending or processing</small></article>
         <article><span>Total credited</span><strong>{{ money(wallet.credited) }}</strong><small>All commission credits</small></article>
