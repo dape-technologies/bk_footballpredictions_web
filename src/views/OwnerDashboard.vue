@@ -41,6 +41,7 @@ const error = ref('')
 const notice = ref('')
 const metrics = ref({})
 const packages = ref([])
+const weeklyPlan = ref({ name: 'Weekly Plan', description: '', price: 1000, currency: 'UGX', duration_days: 7, is_active: false })
 const freePicks = ref([])
 const payments = ref([])
 const paymentReport = ref({ summary: {}, by_status: [], by_provider: [], by_package: [], failure_categories: [] })
@@ -82,6 +83,7 @@ const activeMeta = computed(() => sections.find((item) => item.id === section.va
 const overviewTiles = computed(() => [
   { label: 'Members', value: metrics.value.customers, note: 'Registered users', icon: PhUsersThree },
   { label: 'Active packages', value: metrics.value.active_packages, note: 'Visible for purchase', icon: PhPackage },
+  { label: 'Weekly subscribers', value: metrics.value.active_subscribers, note: 'Active now', icon: PhUsersThree },
   { label: 'Pending payments', value: metrics.value.pending_payments, note: 'Need confirmation', icon: PhHourglassMedium },
   { label: 'Paid', value: metrics.value.paid_payments, note: 'Completed payments', icon: PhCreditCard },
   { label: 'Wallet balance', value: `UGX ${money(metrics.value.wallet?.available)}`, note: 'Available for payout', icon: PhWallet, money: true },
@@ -89,6 +91,7 @@ const overviewTiles = computed(() => [
 const emptyPackage = () => ({
   name: '',
   package_type: '',
+  offer_type: 'one_off',
   price: '',
   currency: 'UGX',
   win_probability: 70,
@@ -144,8 +147,9 @@ async function loadAll() {
       api('/v1/owner/customers/'),
       api('/v1/owner/payments/report/'),
       api('/v1/owner/performance/'),
+      api('/v1/owner/subscription-plan/'),
     ])
-    ;[metrics.value, packages.value, freePicks.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value] = data
+    ;[metrics.value, packages.value, freePicks.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value, weeklyPlan.value] = data
   } catch (caught) {
     error.value = caught.message
   } finally {
@@ -224,6 +228,7 @@ async function editPackage(plan) {
   Object.assign(packageForm, {
     name: plan.name,
     package_type: plan.package_type,
+    offer_type: plan.offer_type || 'one_off',
     price: plan.price,
     currency: plan.currency || 'UGX',
     win_probability: plan.win_probability,
@@ -249,6 +254,7 @@ async function clonePackage(plan) {
   Object.assign(packageForm, {
     name: `${plan.name} copy`,
     package_type: plan.package_type,
+    offer_type: plan.offer_type || 'one_off',
     price: plan.price,
     currency: plan.currency || 'UGX',
     win_probability: plan.win_probability,
@@ -284,7 +290,10 @@ async function savePackage() {
   try {
     const data = new FormData()
     Object.entries(packageForm).forEach(([key, value]) => {
-      data.append(key, key === 'closes_at' ? new Date(value).toISOString() : value)
+      const normalized = key === 'closes_at'
+        ? new Date(value).toISOString()
+        : key === 'price' && packageForm.offer_type === 'weekly' ? 0 : value
+      data.append(key, normalized)
     })
     data.append('slug', packageSlugSeed.value || slugify(packageForm.name))
     if (packageFile.value) data.append('image', packageFile.value)
@@ -302,6 +311,25 @@ async function savePackage() {
   } finally {
     saving.value = false
   }
+}
+
+async function saveWeeklyPlan() {
+  saving.value = true
+  error.value = ''
+  try {
+    weeklyPlan.value = await api('/v1/owner/subscription-plan/', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: weeklyPlan.value.name,
+        description: weeklyPlan.value.description,
+        price: weeklyPlan.value.price,
+        currency: 'UGX',
+        is_active: weeklyPlan.value.is_active,
+      }),
+    })
+    flash('Weekly Plan settings updated.')
+  } catch (caught) { error.value = caught.message }
+  finally { saving.value = false }
 }
 
 async function togglePackage(plan, field) {
@@ -544,6 +572,16 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else-if="section === 'packages'">
+          <section class="owner-panel owner-editor-panel">
+            <div class="panel-heading"><div><p>Subscriber offer</p><h2>Weekly Plan settings</h2></div><PhCreditCard :size="22" /></div>
+            <p class="measurement-note">One payment unlocks all current weekly content and every new weekly upload for exactly seven days. Customers can renew only after expiry.</p>
+            <form class="owner-form" @submit.prevent="saveWeeklyPlan">
+              <div class="field-pair"><label><span>Plan name</span><input v-model.trim="weeklyPlan.name" required maxlength="100"></label><label><span>Price (UGX)</span><input v-model="weeklyPlan.price" required min="500" max="5000000" type="number"></label></div>
+              <label><span>Description</span><textarea v-model.trim="weeklyPlan.description" maxlength="1000" rows="3"></textarea></label>
+              <div class="package-form-footer"><label class="admin-toggle"><input v-model="weeklyPlan.is_active" type="checkbox"><span></span><b>Available for subscription</b></label><button type="submit" class="owner-primary-button" :disabled="saving">{{ saving ? 'Saving…' : 'Save Weekly Plan' }}</button></div>
+            </form>
+          </section>
+
           <section ref="packageEditor" class="owner-panel owner-editor-panel">
             <div class="panel-heading">
               <div><p>{{ isEditingPackage ? 'Editing package' : cloneSourceName ? 'New package from clone' : 'New package' }}</p><h2>{{ isEditingPackage ? `Edit ${packageForm.name}` : cloneSourceName ? `Clone ${cloneSourceName}` : 'Add a betslip' }}</h2></div>
@@ -558,8 +596,10 @@ onBeforeUnmount(() => {
                     <label><span>Package name</span><input ref="packageNameInput" v-model.trim="packageForm.name" required placeholder="Weekend accumulator"></label>
                     <label><span>Type</span><input v-model.trim="packageForm.package_type" required placeholder="Accumulator"></label>
                   </div>
+                  <label><span>Offer type</span><select v-model="packageForm.offer_type"><option value="one_off">One-off package</option><option value="weekly">Weekly plan content</option></select><small>{{ packageForm.offer_type === 'weekly' ? 'Included automatically for active weekly subscribers; not sold separately.' : 'Sold individually with permanent paid access.' }}</small></label>
                   <div class="field-pair">
-                    <label><span>Price (UGX)</span><input v-model="packageForm.price" required min="500" type="number" placeholder="25000"></label>
+                    <label v-if="packageForm.offer_type === 'one_off'"><span>Price (UGX)</span><input v-model="packageForm.price" required min="500" type="number" placeholder="25000"></label>
+                    <label v-else><span>Access</span><input value="Included in Weekly Plan" disabled></label>
                     <label><span>Win probability (%)</span><input v-model="packageForm.win_probability" required min="0" max="100" type="number"></label>
                   </div>
                   <div class="field-pair">
@@ -604,11 +644,11 @@ onBeforeUnmount(() => {
             <div v-if="!packages.length" class="empty-row">No packages have been added.</div>
             <div v-else class="table-wrap">
               <table class="package-admin-table">
-                <thead><tr><th>Photo</th><th>Package name</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Photo</th><th>Package name</th><th>Offer</th><th>Type</th><th>Price</th><th>Probability</th><th>Closes</th><th>Status</th><th>Betslip link</th><th>Code</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="plan in packages" :key="plan.id">
                     <td><div class="package-table-photo" :style="plan.image_url ? { backgroundImage: `url(${plan.image_url})` } : {}"><PhPackage v-if="!plan.image_url" :size="18" /></div></td>
-                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.package_type }}</td><td><strong>UGX {{ money(plan.price) }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
+                    <td><strong>{{ plan.name }}</strong></td><td>{{ plan.offer_type === 'weekly' ? 'Weekly Plan' : 'One-off' }}</td><td>{{ plan.package_type }}</td><td><strong>{{ plan.offer_type === 'weekly' ? 'Included' : `UGX ${money(plan.price)}` }}</strong></td><td>{{ plan.win_probability }}%</td><td>{{ formatDate(plan.closes_at) }}</td>
                     <td><label class="admin-toggle compact" :title="plan.is_active ? 'Deactivate package' : 'Activate package'"><input :checked="plan.is_active" type="checkbox" @change="togglePackage(plan, 'is_active')"><span></span><b>{{ plan.is_active ? 'ON' : 'OFF' }}</b></label></td>
                     <td><a :href="plan.betslip_link" target="_blank" rel="noopener">Open link</a></td><td><code>{{ plan.code }}</code></td>
                     <td>
@@ -731,7 +771,7 @@ onBeforeUnmount(() => {
                 <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Provider reference</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="payment in payments" :key="payment.id">
-                    <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.package.name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
+                    <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.product_name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
                     <td><code>{{ payment.internal_reference || 'Awaiting Relworx' }}</code></td>
                     <td><button type="button" class="icon-button" title="View transaction" @click="openPayment(payment)"><PhEye :size="17" /></button></td>
                   </tr>
@@ -779,7 +819,7 @@ onBeforeUnmount(() => {
         <div class="payment-detail-grid">
           <div><span>Status</span><strong><i :class="['status-chip', selectedPayment.status]">{{ selectedPayment.status }}</i></strong></div>
           <div><span>Customer</span><strong>{{ selectedPayment.user.full_name }}</strong><small>{{ selectedPayment.user.phone }}</small></div>
-          <div><span>Package</span><strong>{{ selectedPayment.package.name }}</strong></div>
+          <div><span>Product</span><strong>{{ selectedPayment.product_name }}</strong></div>
           <div><span>Amount</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.amount) }}</strong></div>
           <div><span>Package price</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.base_amount || selectedPayment.amount) }}</strong></div>
           <div><span>Estimated provider fee</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.provider_fee_estimate) }}</strong></div>
