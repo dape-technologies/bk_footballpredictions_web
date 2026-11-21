@@ -47,9 +47,13 @@ const payments = ref([])
 const paymentReport = ref({ summary: {}, by_status: [], by_provider: [], by_package: [], failure_categories: [] })
 const performance = ref({ summary: {}, by_package: [], unsettled: 0 })
 const selectedPayment = ref(null)
-const paymentFilters = reactive({ search: '', status: '', failure_category: '', from: '', to: '' })
+const paymentFilters = reactive({ search: '', status: '', settlement: '', failure_category: '', from: '', to: '' })
 const wins = ref([])
 const customers = ref([])
+const subscriberData = ref({ summary: { active: 0, waiting: 0, available: 0, expiring: 0 }, results: [] })
+const subscriberFilters = reactive({ status: 'active', search: '' })
+const subscriberLoading = ref(false)
+const subscriberNow = ref(Date.now())
 const packageFile = ref(null)
 const paidPackageFile = ref(null)
 const packageEditor = ref(null)
@@ -66,6 +70,7 @@ const winFile = ref(null)
 const confirmation = ref(null)
 const backgroundRefreshing = ref(false)
 let liveRefreshTimer
+let countdownTimer
 
 const sections = [
   { id: 'overview', label: 'Overview', note: 'Operating pulse', icon: PhHouse },
@@ -73,6 +78,7 @@ const sections = [
   { id: 'free-picks', label: 'Free picks', note: 'Public reveal', icon: PhLightning },
   { id: 'recent-wins', label: 'Recent wins', note: 'Photos and captions', icon: PhTrophy },
   { id: 'payments', label: 'Payments', note: 'Track transactions', icon: PhCreditCard },
+  { id: 'subscribers', label: 'Subscribers', note: 'Weekly access clock', icon: PhHourglassMedium },
   { id: 'wallet', label: 'Wallet', note: 'Balances and payouts', icon: PhWallet },
   { id: 'members', label: 'Members', note: 'Audience controls', icon: PhUsersThree },
   { id: 'insights', label: 'Insights', note: 'Conversion and speed', icon: PhChartLineUp },
@@ -117,8 +123,18 @@ const winForm = reactive({ caption: '' })
 const money = (value) => new Intl.NumberFormat('en-UG').format(value || 0)
 const percent = (value) => `${Number(value || 0).toFixed(1)}%`
 const formatDate = (value) => value
-  ? new Intl.DateTimeFormat('en-UG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+  ? new Intl.DateTimeFormat('en-UG', { timeZone: 'Africa/Kampala', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : 'Not set'
+const subscriptionCountdown = (value) => {
+  const seconds = Math.max(0, Math.floor((new Date(value).getTime() - subscriberNow.value) / 1000))
+  if (!seconds) return 'Expired'
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days) return `${days}d ${hours}h left`
+  if (hours) return `${hours}h ${minutes}m left`
+  return `${Math.max(1, minutes)}m left`
+}
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const toDatetimeLocal = (value) => {
   if (!value) return ''
@@ -148,8 +164,9 @@ async function loadAll() {
       api('/v1/owner/payments/report/'),
       api('/v1/owner/performance/'),
       api('/v1/owner/subscription-plan/'),
+      api('/v1/owner/weekly-subscribers/'),
     ])
-    ;[metrics.value, packages.value, freePicks.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value, weeklyPlan.value] = data
+    ;[metrics.value, packages.value, freePicks.value, payments.value, wins.value, customers.value, paymentReport.value, performance.value, weeklyPlan.value, subscriberData.value] = data
   } catch (caught) {
     error.value = caught.message
   } finally {
@@ -166,6 +183,7 @@ async function refreshLiveData() {
     if (section.value === 'free-picks') freePicks.value = await api('/v1/owner/free-picks/')
     if (section.value === 'recent-wins') wins.value = await api('/v1/owner/recent-wins/')
     if (section.value === 'members') customers.value = await api('/v1/owner/customers/')
+    if (section.value === 'subscribers') await loadSubscribers(true)
     if (section.value === 'payments') {
       const query = paymentQuery()
       const suffix = query ? `?${query}` : ''
@@ -180,6 +198,25 @@ async function refreshLiveData() {
   } finally {
     backgroundRefreshing.value = false
   }
+}
+
+async function loadSubscribers(silent = false) {
+  if (!silent) subscriberLoading.value = true
+  if (!silent) error.value = ''
+  try {
+    const query = new URLSearchParams({ status: subscriberFilters.status })
+    if (subscriberFilters.search) query.set('search', subscriberFilters.search)
+    subscriberData.value = await api(`/v1/owner/weekly-subscribers/?${query}`)
+  } catch (caught) {
+    if (!silent) error.value = caught.message
+  } finally {
+    subscriberLoading.value = false
+  }
+}
+
+function selectSubscriberStatus(statusValue) {
+  subscriberFilters.status = statusValue
+  loadSubscribers()
 }
 
 function refreshWhenVisible() {
@@ -465,11 +502,13 @@ async function confirmDelete() {
 onMounted(async () => {
   await loadAll()
   liveRefreshTimer = window.setInterval(refreshLiveData, 15_000)
+  countdownTimer = window.setInterval(() => { subscriberNow.value = Date.now() }, 1_000)
   document.addEventListener('visibilitychange', refreshWhenVisible)
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(liveRefreshTimer)
+  window.clearInterval(countdownTimer)
   document.removeEventListener('visibilitychange', refreshWhenVisible)
 })
 </script>
@@ -748,11 +787,48 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
+        <template v-else-if="section === 'subscribers'">
+          <section class="subscriber-hero">
+            <div><p>Seven-day access desk</p><h2>Know who is paid, waiting, and nearly expired.</h2><span>Countdowns use Kampala time and update live without reloading the page.</span></div>
+            <PhHourglassMedium :size="44" weight="duotone" />
+          </section>
+          <section class="owner-kpis subscriber-kpis" aria-label="Weekly subscriber summary">
+            <button type="button" :class="{ active: subscriberFilters.status === 'active' }" @click="selectSubscriberStatus('active')"><span>Active subscribers</span><strong>{{ subscriberData.summary.active }}</strong><small>Paid access now</small></button>
+            <button type="button" :class="{ active: subscriberFilters.status === 'waiting' }" @click="selectSubscriberStatus('waiting')"><span>Waiting</span><strong>{{ subscriberData.summary.waiting }}</strong><small>No open package</small></button>
+            <button type="button" :class="{ active: subscriberFilters.status === 'available' }" @click="selectSubscriberStatus('available')"><span>Content available</span><strong>{{ subscriberData.summary.available }}</strong><small>Package loaded</small></button>
+            <button type="button" :class="{ active: subscriberFilters.status === 'expiring' }" @click="selectSubscriberStatus('expiring')"><span>Expiring today</span><strong>{{ subscriberData.summary.expiring }}</strong><small>24 hours or less</small></button>
+          </section>
+          <section class="owner-panel subscriber-panel">
+            <div class="panel-heading"><div><p>Subscriber operations</p><h2>{{ subscriberData.results.length }} {{ subscriberFilters.status }} records</h2></div><button type="button" class="owner-secondary-button" @click="selectSubscriberStatus('expired')">View expired</button></div>
+            <form class="subscriber-search" @submit.prevent="loadSubscribers()"><label><span>Find customer</span><input v-model.trim="subscriberFilters.search" placeholder="Name or phone number"></label><button type="submit" class="owner-primary-button">Search</button></form>
+            <div v-if="subscriberLoading" class="subscriber-skeleton"><i v-for="n in 4" :key="n"></i></div>
+            <div v-else-if="!subscriberData.results.length" class="empty-row">No weekly subscribers match this view.</div>
+            <div v-else class="table-wrap">
+              <table class="subscriber-table">
+                <thead><tr><th>Customer</th><th>Payment</th><th>Access window</th><th>Time left</th><th>Package state</th><th>Content</th></tr></thead>
+                <tbody><tr v-for="subscriber in subscriberData.results" :key="subscriber.id">
+                  <td><div class="member-cell"><span>{{ subscriber.customer.full_name.charAt(0) }}</span><div><strong>{{ subscriber.customer.full_name }}</strong><small>{{ subscriber.customer.phone }}</small></div></div></td>
+                  <td><span class="status-chip paid">Paid</span><strong class="subscriber-amount">{{ subscriber.currency_snapshot }} {{ money(subscriber.payment?.amount || subscriber.price_snapshot) }}</strong><code>{{ subscriber.payment?.reference || 'Confirmed' }}</code></td>
+                  <td><small>Started {{ formatDate(subscriber.access_starts_at) }}</small><strong>Ends {{ formatDate(subscriber.access_ends_at) }}</strong></td>
+                  <td><strong class="subscriber-countdown" :class="{ urgent: subscriber.is_expiring_soon }">{{ subscriptionCountdown(subscriber.access_ends_at) }}</strong></td>
+                  <td><span :class="['status-chip', subscriber.content_status === 'available' ? 'active' : subscriber.content_status === 'waiting' ? 'pending' : 'cancelled']">{{ subscriber.content_status === 'waiting' ? 'Waiting for package' : subscriber.content_status }}</span></td>
+                  <td><strong>{{ subscriber.available_content_count }}</strong><small>open weekly package{{ subscriber.available_content_count === 1 ? '' : 's' }}</small></td>
+                </tr></tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+
         <template v-else-if="section === 'payments'">
+          <section :class="['reconciliation-panel', metrics.reconciliation?.overall || 'never_run']">
+            <div><span>Automated reconciliation</span><h2>{{ (metrics.reconciliation?.overall || 'never run').replace('_', ' ') }}</h2><p>Payments due: {{ metrics.reconciliation?.jobs?.payments?.due_count || 0 }} · Needs review: {{ metrics.reconciliation?.jobs?.payments?.needs_review_count || 0 }}</p></div>
+            <div><small>Last successful payment run</small><strong>{{ metrics.reconciliation?.jobs?.payments?.last_success_at ? formatDate(metrics.reconciliation.jobs.payments.last_success_at) : 'Not recorded' }}</strong></div>
+          </section>
           <section class="owner-kpis payment-report-kpis" aria-label="Filtered payment report">
             <article><div class="owner-kpi-heading"><span>Attempts</span><i><PhCreditCard :size="20" /></i></div><strong>{{ paymentReport.summary?.attempts || 0 }}</strong><small>{{ percent(paymentReport.summary?.success_rate) }} confirmed</small></article>
             <article><div class="owner-kpi-heading"><span>Gross revenue</span><i><PhMoneyWavy :size="20" /></i></div><strong>{{ money(paymentReport.summary?.gross_revenue) }}</strong><small>UGX confirmed</small></article>
             <article><div class="owner-kpi-heading"><span>Needs review</span><i><PhWarningCircle :size="20" /></i></div><strong>{{ paymentReport.summary?.needs_review || 0 }}</strong><small>Transactions requiring investigation</small></article>
+            <article><div class="owner-kpi-heading"><span>Duplicate settlements</span><i><PhCopy :size="20" /></i></div><strong>{{ paymentReport.summary?.duplicate_settlements || 0 }}</strong><small>Credited without extra access</small></article>
           </section>
 
           <section class="owner-panel">
@@ -760,6 +836,7 @@ onBeforeUnmount(() => {
             <form class="payment-filters" @submit.prevent="loadPaymentOperations">
               <label><span>Search</span><input v-model.trim="paymentFilters.search" placeholder="Reference, phone or package"></label>
               <label><span>Status</span><select v-model="paymentFilters.status"><option value="">All statuses</option><option v-for="value in ['created','submitted','pending','paid','failed','expired','cancelled','needs_review']" :key="value" :value="value">{{ value.replace('_', ' ') }}</option></select></label>
+              <label><span>Settlement</span><select v-model="paymentFilters.settlement"><option value="">All settlements</option><option value="primary">Primary</option><option value="duplicate">Duplicate</option></select></label>
               <label><span>Failure</span><select v-model="paymentFilters.failure_category"><option value="">All failures</option><option v-for="value in ['customer','provider','system','validation']" :key="value" :value="value">{{ value }}</option></select></label>
               <label><span>From</span><input v-model="paymentFilters.from" type="date"></label>
               <label><span>To</span><input v-model="paymentFilters.to" type="date"></label>
@@ -771,7 +848,7 @@ onBeforeUnmount(() => {
                 <thead><tr><th>Reference</th><th>User</th><th>Package</th><th>Amount</th><th>Status</th><th>Created</th><th>Provider reference</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   <tr v-for="payment in payments" :key="payment.id">
-                    <td><code>{{ payment.reference }}</code></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.product_name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
+                    <td><code>{{ payment.reference }}</code><small v-if="payment.settlement_classification === 'duplicate'" class="duplicate-label">Duplicate settlement</small></td><td><strong>{{ payment.user.full_name }}</strong><small>{{ payment.user.phone }}</small></td><td>{{ payment.product_name }}</td><td><strong>{{ payment.currency }} {{ money(payment.amount) }}</strong></td><td><span :class="['status-chip', payment.status]">{{ payment.status }}</span></td><td>{{ formatDate(payment.created_at) }}</td>
                     <td><code>{{ payment.internal_reference || 'Awaiting Relworx' }}</code></td>
                     <td><button type="button" class="icon-button" title="View transaction" @click="openPayment(payment)"><PhEye :size="17" /></button></td>
                   </tr>
@@ -818,6 +895,7 @@ onBeforeUnmount(() => {
         <p>Transaction detail</p><h2 id="payment-detail-title">{{ selectedPayment.reference }}</h2>
         <div class="payment-detail-grid">
           <div><span>Status</span><strong><i :class="['status-chip', selectedPayment.status]">{{ selectedPayment.status }}</i></strong></div>
+          <div><span>Settlement</span><strong>{{ selectedPayment.settlement_classification === 'duplicate' ? 'Duplicate entitlement payment' : 'Primary payment' }}</strong><small v-if="selectedPayment.duplicate_of_reference">Original: {{ selectedPayment.duplicate_of_reference }}</small></div>
           <div><span>Customer</span><strong>{{ selectedPayment.user.full_name }}</strong><small>{{ selectedPayment.user.phone }}</small></div>
           <div><span>Product</span><strong>{{ selectedPayment.product_name }}</strong></div>
           <div><span>Amount</span><strong>{{ selectedPayment.currency }} {{ money(selectedPayment.amount) }}</strong></div>

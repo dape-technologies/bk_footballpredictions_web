@@ -20,6 +20,7 @@ const error = ref('')
 const purchases = ref([])
 const freeTip = ref(null)
 const payment = ref(null)
+const paymentConflict = ref(null)
 const paidPurchase = ref(null)
 const paidSubscription = ref(null)
 const subscriptions = ref([])
@@ -153,6 +154,7 @@ async function refreshPayment() {
 
 async function startPayment() {
   error.value = ''
+  paymentConflict.value = null
   loading.value = true
   clearTimeout(pollTimer)
   try {
@@ -166,9 +168,26 @@ async function startPayment() {
     if (paymentPending.value) schedulePaymentCheck(2500)
   } catch (err) {
     error.value = err.message
+    if (['payment_in_progress', 'payment_needs_review', 'already_paid', 'subscription_active'].includes(err.payload?.code)) {
+      paymentConflict.value = err.payload
+    }
   } finally {
     loading.value = false
   }
+}
+
+async function checkConflictingPayment() {
+  const id = paymentConflict.value?.payment?.id
+  if (!id) return emit('switch', 'account')
+  loading.value = true
+  try {
+    payment.value = await api(`/v1/me/payments/${id}/refresh/`, { method: 'POST', body: '{}' })
+    paymentConflict.value = null
+    error.value = ''
+    if (payment.value.status === 'paid') emit('switch', 'account')
+    else if (paymentPending.value) schedulePaymentCheck(2500)
+  } catch (caught) { error.value = caught.message }
+  finally { loading.value = false }
 }
 
 async function submit() {
@@ -301,9 +320,15 @@ onBeforeUnmount(() => {
 
           <form v-else class="mt-7 grid gap-4" @submit.prevent="startPayment">
             <label class="grid gap-2 text-sm font-semibold">Mobile-money number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"><small class="font-normal text-white/40">Use the MTN or Airtel number that will approve the payment.</small></label>
+            <div v-if="paymentConflict" class="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-amber-50">
+              <strong class="block text-sm">Do not pay twice</strong>
+              <p class="mt-1 text-sm leading-6 text-amber-100/75">{{ paymentConflict.detail }}</p>
+              <code v-if="paymentConflict.payment?.reference" class="mt-2 block text-xs text-amber-100/60">{{ paymentConflict.payment.reference }}</code>
+              <button type="button" class="mt-3 text-sm font-extrabold underline underline-offset-4" :disabled="loading" @click="checkConflictingPayment">{{ paymentConflict.payment?.id ? 'Check existing payment' : 'Open my account' }}</button>
+            </div>
             <p v-if="paymentRetryable || paymentNeedsReview" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100">{{ payment.customer_message || 'The payment was not completed. You can try again.' }}</p>
-            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
-            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
+            <p v-if="error && !paymentConflict" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview || paymentConflict">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
             <p class="text-center text-xs leading-5 text-white/35">Access unlocks only after Relworx confirms the exact amount, currency, and transaction reference.</p>
           </form>
           <p v-if="paymentPending && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>

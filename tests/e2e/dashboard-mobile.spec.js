@@ -13,6 +13,8 @@ for (const role of ['owner', 'developer']) {
       else if (path.endsWith('/report/')) result = { summary: {} }
       else if (path.endsWith('/performance/')) result = { summary: {}, by_package: [] }
       else if (path.endsWith('/payment-gateway/')) result = { provider: { configured: true, capabilities: {} } }
+      else if (path.endsWith('/reconciliation-health/')) result = { overall: 'healthy', jobs: { payments: { health: 'healthy', recent_runs: [] }, payouts: { health: 'healthy', recent_runs: [] } } }
+      else if (path.endsWith('/weekly-subscribers/')) result = { summary: { active: 0, waiting: 0, available: 0, expiring: 0 }, results: [] }
       else if (path.endsWith('/wallet/')) result = { provider_balance: 30000, minimum_operating_balance: 1500, minimum_payout: 500, maximum_payout: 5000000, destination: '***1777', destination_configured: true, payouts_enabled: true, payouts_frozen: false, execution_mode: 'immediate', wallet: { available: 10000, reserved: 0, credited: 10000, today_earned: 2750, today_credited: 2750 }, requests: [], ledger: [] }
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) })
     })

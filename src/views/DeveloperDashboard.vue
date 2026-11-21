@@ -18,6 +18,7 @@ const loading = ref(true)
 const error = ref('')
 const analytics = ref(null)
 const gateway = ref(null)
+const reconciliation = ref(null)
 const gatewayTesting = ref(false)
 const gatewayNotice = ref('')
 const gatewayError = ref('')
@@ -72,8 +73,8 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    ;[analytics.value, gateway.value] = await Promise.all([
-      api('/v1/developer/analytics/'), api('/v1/developer/payment-gateway/'),
+    ;[analytics.value, gateway.value, reconciliation.value] = await Promise.all([
+      api('/v1/developer/analytics/'), api('/v1/developer/payment-gateway/'), api('/v1/developer/reconciliation-health/'),
     ])
   } catch (caught) { error.value = caught.message }
   finally { loading.value = false }
@@ -172,6 +173,7 @@ onMounted(async () => { try { members.value = await api('/v1/developer/users/') 
           <article class="gateway-callout"><div><span>LIVE PAYMENT CONNECTION</span><h2>Relworx handles all BK payments</h2><p>BK uses one provider. This console can verify authentication and wallet connectivity, but it cannot switch payment routing.</p></div><b><i></i> ACTIVE</b></article>
           <p v-if="gatewayError" class="inline-message error">{{ gatewayError }}</p><p v-if="gatewayNotice" class="inline-message success">{{ gatewayNotice }}</p>
           <article class="gateway-card"><header><div><span>RELWORX</span><h2>Relworx</h2></div><b>{{ gateway?.provider?.configured ? 'IN USE' : 'NOT CONFIGURED' }}</b></header><p>{{ gateway?.provider?.message }}</p><div class="capabilities"><span :class="{ on: gateway?.provider?.capabilities?.collections }">Collections enabled</span><span :class="{ on: gateway?.provider?.capabilities?.payouts }">API payouts enabled</span><span :class="{ on: gateway?.provider?.capabilities?.signed_webhooks }">Signed webhooks</span><span :class="{ on: gateway?.provider?.capabilities?.scheduled_reconciliation }">Scheduled reconciliation</span></div><button type="button" :disabled="gatewayTesting || !gateway?.provider?.configured" @click="testConnection">{{ gatewayTesting ? 'Testing connection…' : 'Test connection' }}</button></article>
+          <article class="panel reconciliation-console"><h2>Reconciliation monitor</h2><p>Expected every five minutes. A job becomes stale after fifteen minutes without a successful run.</p><div class="reconciliation-jobs"><section v-for="(job, key) in reconciliation?.jobs" :key="key"><header><strong>{{ titleCase(key) }}</strong><span :class="['status', job.health]">{{ titleCase(job.health) }}</span></header><dl><div><dt>Last success</dt><dd>{{ date(job.last_success_at) }}</dd></div><div><dt>Due now</dt><dd>{{ number(job.due_count) }}</dd></div><div v-if="key === 'payments'"><dt>Needs review</dt><dd>{{ number(job.needs_review_count) }}</dd></div></dl><details><summary>Recent runs</summary><ol><li v-for="run in job.recent_runs" :key="run.id"><span :class="['status', run.status]">{{ titleCase(run.status) }}</span><strong>{{ date(run.finished_at || run.started_at) }}</strong><small>{{ run.scanned_count }} scanned</small></li></ol></details></section></div></article>
         </template>
       </div>
     </section>
@@ -180,6 +182,7 @@ onMounted(async () => { try { members.value = await api('/v1/developer/users/') 
 
 <style scoped>
 .panel>button,.table-scroll td>button{min-height:2.75rem;padding:.65rem 1rem;border:1px solid #111;border-radius:.45rem;background:#111;color:#fff;font-weight:700;cursor:pointer}.panel>button:active,.table-scroll td>button:active{transform:translateY(1px)}
+.reconciliation-jobs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1.25rem}.reconciliation-jobs>section{padding:1rem;border:1px solid #e1e1de;border-radius:.6rem;background:#fafaf8}.reconciliation-jobs header{display:flex;align-items:center;justify-content:space-between}.reconciliation-jobs dl{display:grid;gap:.55rem;margin:1rem 0}.reconciliation-jobs dl>div{display:flex;justify-content:space-between;gap:1rem}.reconciliation-jobs dt{color:#687078;font-size:.72rem}.reconciliation-jobs dd{margin:0;font-size:.75rem;font-weight:800}.reconciliation-jobs summary{cursor:pointer;font-size:.72rem;font-weight:800}.reconciliation-jobs ol{display:grid;gap:.5rem;margin:.75rem 0 0;padding:0;list-style:none}.reconciliation-jobs li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.5rem;font-size:.68rem}.status.healthy,.status.success{background:#e2f1da;color:#285726}.status.stale,.status.degraded,.status.failed,.status.never_run{background:#f8dfdc;color:#7f2922}@media(max-width:760px){.reconciliation-jobs{grid-template-columns:1fr}}
 </style>
 
 <style scoped>
