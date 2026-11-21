@@ -9,12 +9,19 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(user.value))
   const isOwner = computed(() => Boolean(user.value?.is_owner))
   const isDeveloper = computed(() => Boolean(user.value?.is_developer))
+  let initializePromise = null
   async function initialize(force = false) {
     if (ready.value && !force) return user.value
-    try { user.value = await api('/v1/auth/me/') }
-    catch (error) { if (error.status !== 401 && error.status !== 403) console.error(error); user.value = null }
-    finally { ready.value = true }
-    return user.value
+    if (initializePromise && !force) return initializePromise
+    const request = (async () => {
+      try { user.value = await api('/v1/auth/me/') }
+      catch (error) { if (error.status !== 401 && error.status !== 403) console.error(error); user.value = null }
+      finally { ready.value = true }
+      return user.value
+    })()
+    initializePromise = request
+    try { return await request }
+    finally { if (initializePromise === request) initializePromise = null }
   }
   async function authenticate(path, credentials) {
     const result = await api(path, { method: 'POST', body: JSON.stringify(credentials) })
