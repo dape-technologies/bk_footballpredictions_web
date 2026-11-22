@@ -17,7 +17,7 @@ const router = createRouter({
   routes: [
     { path: '/', component: HomeView },
     { path: '/predictions', redirect: () => sectionRedirect('#packages') },
-    { path: '/packages', redirect: () => sectionRedirect('#packages') },
+    { path: '/packages', redirect: (to) => ({ path: '/', query: to.query, hash: '#packages' }) },
     { path: '/results', redirect: () => sectionRedirect('#results') },
     { path: '/about', redirect: () => sectionRedirect('#about') },
     { path: '/login', component: HomeView, meta: { guest: true, dialog: 'login' } },
