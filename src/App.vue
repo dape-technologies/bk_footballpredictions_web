@@ -39,6 +39,7 @@ function openDialog(mode, data = {}) {
 }
 
 function closeDialog() {
+  if (dialog.value === 'recovery-setup' && auth.user?.recovery_configured === false && !auth.isOwner && !auth.isDeveloper) return
   dialog.value = null
   dialogData.value = {}
   if (route.meta.dialog) router.replace('/')
@@ -98,6 +99,16 @@ provide('openAppDialog', openDialog)
 watch(() => route.meta.dialog, (mode) => {
   if (mode) dialog.value = mode
 }, { immediate: true })
+
+watch(
+  [() => auth.ready, () => auth.user?.id, () => auth.user?.recovery_configured, () => auth.isOwner, () => auth.isDeveloper],
+  ([ready]) => {
+    if (ready && auth.user && !auth.isOwner && !auth.isDeveloper && auth.user.recovery_configured === false) {
+      openDialog('recovery-setup', { required: true })
+    }
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   auth.initialize()

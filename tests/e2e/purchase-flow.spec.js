@@ -86,7 +86,7 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   await expect(page.getByText('Payment confirmed')).toBeVisible({ timeout: 7000 })
   await expect(page.getByText('BK-DAY-78')).toBeVisible()
   await expect(page.getByRole('img', { name: 'Daily Edge paid package image' })).toBeVisible()
-  await page.route('https://example.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Purchased betslip</h1>' }))
+  await page.context().route('https://example.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<h1>Purchased betslip</h1>' }))
   const accessRequest = page.waitForRequest('**/api/v1/me/purchases/21/access/')
   const popupPromise = page.waitForEvent('popup')
   await page.getByRole('button', { name: 'Open betslip' }).click()

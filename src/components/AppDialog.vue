@@ -9,28 +9,49 @@ const props = defineProps({
   mode: { type: String, required: true },
   plan: { type: Object, default: null },
   purchase: { type: Object, default: null },
+  checkoutType: { type: String, default: 'package' },
+  required: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close', 'switch'])
 const auth = useAuthStore()
 const router = useRouter()
-const form = reactive({ first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '' })
+const form = reactive({
+  first_name: '', surname: '', date_of_birth: '', phone: '', password: '', password_confirm: '',
+  current_password: '', recovery_private_phrase: '', recovery_life_phrase: '', recovery_id: '', new_password: '',
+})
 const loading = ref(false)
 const error = ref('')
 const purchases = ref([])
 const freeTip = ref(null)
 const payment = ref(null)
+const paymentConflict = ref(null)
 const paidPurchase = ref(null)
+const paidSubscription = ref(null)
+const subscriptions = ref([])
+const weeklyContent = ref([])
 const preferences = ref({ product_updates: false, closing_reminders: false, performance_measurement: true })
 const accountTab = ref('active')
 const accountNotices = ref([])
 const clock = ref(Date.now())
 const visiblePurchases = computed(() => purchases.value.filter((item) => accountTab.value === 'history' || (item.is_paid && new Date(item.package.closes_at).getTime() > clock.value)))
+const activeSubscription = computed(() => subscriptions.value.find((item) => item.is_paid
+  && new Date(item.access_starts_at).getTime() <= clock.value
+  && new Date(item.access_ends_at).getTime() > clock.value) || null)
+const expiredSubscription = computed(() => subscriptions.value.find((item) => item.is_paid
+  && new Date(item.access_ends_at).getTime() <= clock.value) || null)
 let clockTimer
+let accountRefreshTimer
 function countdown(value) {
   const remaining = Math.max(0, new Date(value).getTime() - clock.value)
   if (!remaining) return 'Closed for new purchases'
   const minutes = Math.floor(remaining / 60000)
   return `Closes in ${Math.floor(minutes / 1440)}d ${Math.floor(minutes / 60) % 24}h ${minutes % 60}m`
+}
+function subscriptionCountdown(value) {
+  const remaining = Math.max(0, new Date(value).getTime() - clock.value)
+  if (!remaining) return 'Expired'
+  const minutes = Math.floor(remaining / 60000)
+  return `${Math.floor(minutes / 1440)}d ${Math.floor(minutes / 60) % 24}h ${minutes % 60}m remaining`
 }
 async function savePreferences() {
   try {
@@ -51,10 +72,16 @@ async function openBetslip(item) {
 }
 let pollTimer = null
 const registering = computed(() => props.mode === 'register')
+const isRecoverySetup = computed(() => props.mode === 'recovery-setup')
+const isForgotPassword = computed(() => props.mode === 'forgot-password')
+const isBlockingRecovery = computed(() => isRecoverySetup.value && props.required)
+const recoveryStep = ref('phone')
+const recoveryMessage = ref('')
 const isAccount = computed(() => props.mode === 'account')
 const isFreeTip = computed(() => props.mode === 'free-tip')
 const freeTipLive = computed(() => Boolean(freeTip.value && new Date(freeTip.value.closes_at).getTime() > clock.value))
 const isPayment = computed(() => props.mode === 'payment')
+const isSubscriptionCheckout = computed(() => props.checkoutType === 'subscription')
 const paymentPending = computed(() => ['submitted', 'pending'].includes(payment.value?.status))
 const paymentRetryable = computed(() => ['failed', 'expired', 'cancelled'].includes(payment.value?.status))
 const paymentNeedsReview = computed(() => payment.value?.status === 'needs_review')
@@ -67,7 +94,7 @@ const maximumBirthDate = (() => {
 })()
 
 function onKeydown(event) {
-  if (event.key === 'Escape') emit('close')
+  if (event.key === 'Escape' && !isBlockingRecovery.value) emit('close')
 }
 
 async function loadDialogData() {
@@ -76,7 +103,15 @@ async function loadDialogData() {
     if (!auth.isAuthenticated) return emit('switch', 'login')
     loading.value = true
     try {
-      purchases.value = await api('/v1/me/purchases/')
+      const [purchaseData, subscriptionData] = await Promise.all([
+        api('/v1/me/purchases/'),
+        api('/v1/me/subscriptions/'),
+      ])
+      purchases.value = purchaseData
+      subscriptions.value = subscriptionData
+      weeklyContent.value = activeSubscription.value
+        ? await api('/v1/me/weekly-content/').catch(() => [])
+        : []
       const response = await api('/v1/me/preferences/')
       preferences.value = { ...preferences.value, ...response.preferences }
       accountNotices.value = response.notices || []
@@ -88,7 +123,10 @@ async function loadDialogData() {
     if (!auth.isAuthenticated) return emit('switch', 'login')
     form.phone = auth.user?.phone || ''
     payment.value = props.purchase?.latest_payment || null
-    if (props.purchase?.is_paid) paidPurchase.value = props.purchase
+    if (props.purchase?.is_paid) {
+      if (isSubscriptionCheckout.value) paidSubscription.value = props.purchase
+      else paidPurchase.value = props.purchase
+    }
     else if (paymentPending.value) schedulePaymentCheck(1500)
   }
   if (isFreeTip.value) {
@@ -106,7 +144,8 @@ function schedulePaymentCheck(delay = 5000) {
 }
 
 async function loadPaidPurchase() {
-  paidPurchase.value = await api(`/v1/me/purchases/${props.purchase.id}/`)
+  if (isSubscriptionCheckout.value) paidSubscription.value = await api(`/v1/me/subscriptions/${props.purchase.id}/`)
+  else paidPurchase.value = await api(`/v1/me/purchases/${props.purchase.id}/`)
 }
 
 async function refreshPayment() {
@@ -124,19 +163,40 @@ async function refreshPayment() {
 
 async function startPayment() {
   error.value = ''
+  paymentConflict.value = null
   loading.value = true
   clearTimeout(pollTimer)
   try {
-    payment.value = await api(`/v1/me/purchases/${props.purchase.id}/payment-attempts/`, {
+    const endpoint = isSubscriptionCheckout.value
+      ? `/v1/me/subscriptions/${props.purchase.id}/payment-attempts/`
+      : `/v1/me/purchases/${props.purchase.id}/payment-attempts/`
+    payment.value = await api(endpoint, {
       method: 'POST',
       body: JSON.stringify({ phone: form.phone }),
     })
     if (paymentPending.value) schedulePaymentCheck(2500)
   } catch (err) {
     error.value = err.message
+    if (['payment_in_progress', 'payment_needs_review', 'already_paid', 'subscription_active'].includes(err.payload?.code)) {
+      paymentConflict.value = err.payload
+    }
   } finally {
     loading.value = false
   }
+}
+
+async function checkConflictingPayment() {
+  const id = paymentConflict.value?.payment?.id
+  if (!id) return emit('switch', 'account')
+  loading.value = true
+  try {
+    payment.value = await api(`/v1/me/payments/${id}/refresh/`, { method: 'POST', body: '{}' })
+    paymentConflict.value = null
+    error.value = ''
+    if (payment.value.status === 'paid') emit('switch', 'account')
+    else if (paymentPending.value) schedulePaymentCheck(2500)
+  } catch (caught) { error.value = caught.message }
+  finally { loading.value = false }
 }
 
 async function submit() {
@@ -148,7 +208,12 @@ async function submit() {
   loading.value = true
   try {
     const payload = registering.value
-      ? { first_name: form.first_name, surname: form.surname, date_of_birth: form.date_of_birth, phone: form.phone, password: form.password, password_confirm: form.password_confirm }
+      ? {
+          first_name: form.first_name, surname: form.surname, date_of_birth: form.date_of_birth,
+          phone: form.phone, password: form.password, password_confirm: form.password_confirm,
+          recovery_private_phrase: form.recovery_private_phrase,
+          recovery_life_phrase: form.recovery_life_phrase,
+        }
       : { phone: form.phone, password: form.password }
     const result = registering.value ? await auth.register(payload) : await auth.login(payload)
     if (result.is_owner) {
@@ -157,6 +222,8 @@ async function submit() {
     } else if (result.is_developer) {
       emit('close')
       router.push('/developer/dashboard')
+    } else if (result.recovery_configured === false) {
+      emit('switch', 'recovery-setup', { required: true })
     } else {
       emit('close')
       await router.push('/')
@@ -166,15 +233,95 @@ async function submit() {
   finally { loading.value = false }
 }
 
+async function saveRecoveryProfile() {
+  error.value = ''
+  loading.value = true
+  try {
+    const result = await api('/v1/auth/recovery-profile/', {
+      method: 'PUT',
+      body: JSON.stringify({
+        current_password: form.current_password,
+        recovery_private_phrase: form.recovery_private_phrase,
+        recovery_life_phrase: form.recovery_life_phrase,
+      }),
+    })
+    auth.user = result
+    emit('close')
+  } catch (caught) { error.value = caught.message }
+  finally { loading.value = false }
+}
+
+async function startRecovery() {
+  error.value = ''
+  loading.value = true
+  try {
+    const result = await api('/v1/auth/password-recovery/start/', {
+      method: 'POST', body: JSON.stringify({ phone: form.phone }),
+    })
+    form.recovery_id = result.recovery_id
+    recoveryStep.value = 'answers'
+  } catch (caught) { error.value = caught.message }
+  finally { loading.value = false }
+}
+
+async function completeRecovery() {
+  error.value = ''
+  if (form.new_password !== form.password_confirm) {
+    error.value = 'The passwords do not match.'
+    return
+  }
+  loading.value = true
+  try {
+    const result = await api('/v1/auth/password-recovery/complete/', {
+      method: 'POST',
+      body: JSON.stringify({
+        recovery_id: form.recovery_id,
+        private_phrase: form.recovery_private_phrase,
+        life_phrase: form.recovery_life_phrase,
+        new_password: form.new_password,
+        password_confirm: form.password_confirm,
+      }),
+    })
+    recoveryMessage.value = result.detail
+    recoveryStep.value = 'complete'
+  } catch (caught) { error.value = caught.message }
+  finally { loading.value = false }
+}
+
 async function signOut() {
   await auth.logout()
   emit('close')
 }
 
-watch(() => props.mode, () => { loadDialogData() })
+function goToWeeklyPlan() {
+  emit('close')
+  router.push('/packages')
+}
+
+async function openWeeklyBetslip(item) {
+  const opened = window.open('about:blank', '_blank')
+  if (opened) opened.opener = null
+  try {
+    const response = await api(`/v1/me/weekly-content/${item.id}/access/`, { method: 'POST', body: '{}' })
+    if (opened) opened.location.replace(response.url)
+    else location.assign(response.url)
+  } catch (caught) { opened?.close(); error.value = caught.message }
+}
+
+watch(() => props.mode, () => {
+  error.value = ''
+  recoveryMessage.value = ''
+  recoveryStep.value = 'phone'
+  loadDialogData()
+})
 
 onMounted(() => {
   clockTimer = setInterval(() => { clock.value = Date.now() }, 1000)
+  accountRefreshTimer = setInterval(async () => {
+    if (isAccount.value && activeSubscription.value && !document.hidden) {
+      weeklyContent.value = await api('/v1/me/weekly-content/').catch(() => weeklyContent.value)
+    }
+  }, 30_000)
   document.body.style.overflow = 'hidden'
   window.addEventListener('keydown', onKeydown)
   loadDialogData()
@@ -182,6 +329,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearInterval(clockTimer)
+  clearInterval(accountRefreshTimer)
   clearTimeout(pollTimer)
   document.body.style.overflow = ''
   window.removeEventListener('keydown', onKeydown)
@@ -190,9 +338,9 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 grid place-items-center overflow-x-hidden overflow-y-auto bg-black/75 p-3 backdrop-blur-md sm:p-6" role="presentation" @mousedown.self="emit('close')">
-      <section class="dialog-panel relative max-h-[calc(100dvh-1.5rem)] min-w-0 w-full max-w-xl overflow-x-hidden overflow-y-auto break-words rounded-[1.5rem] border border-white/12 bg-[#101713] p-5 text-[#f2f7f3] shadow-[0_32px_100px_rgba(0,0,0,.65)] sm:max-h-[92dvh] sm:rounded-[1.75rem] sm:p-8" role="dialog" aria-modal="true" :aria-label="isFreeTip ? 'Free earning insight' : isPayment ? 'Mobile money checkout' : isAccount ? 'Member access' : registering ? 'Create account' : 'Sign in'">
-        <button type="button" class="absolute right-4 top-4 grid size-10 place-items-center rounded-xl border border-white/10 text-white/55 hover:border-white/25 hover:text-white" aria-label="Close" @click="emit('close')"><PhX :size="19" /></button>
+    <div class="fixed inset-0 z-50 grid place-items-center overflow-x-hidden overflow-y-auto bg-black/75 p-3 backdrop-blur-md sm:p-6" role="presentation" @mousedown.self="!isBlockingRecovery && emit('close')">
+      <section class="dialog-panel relative max-h-[calc(100dvh-1.5rem)] min-w-0 w-full max-w-xl overflow-x-hidden overflow-y-auto break-words rounded-[1.5rem] border border-white/12 bg-[#101713] p-5 text-[#f2f7f3] shadow-[0_32px_100px_rgba(0,0,0,.65)] sm:max-h-[92dvh] sm:rounded-[1.75rem] sm:p-8" role="dialog" aria-modal="true" :aria-label="isRecoverySetup ? 'Set up account recovery' : isForgotPassword ? 'Reset password' : isFreeTip ? 'Free earning insight' : isPayment ? 'Mobile money checkout' : isAccount ? 'Member access' : registering ? 'Create account' : 'Sign in'">
+        <button v-if="!isBlockingRecovery" type="button" class="absolute right-4 top-4 grid size-10 place-items-center rounded-xl border border-white/10 text-white/55 hover:border-white/25 hover:text-white" aria-label="Close" @click="emit('close')"><PhX :size="19" /></button>
 
         <template v-if="isFreeTip">
           <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhMoneyWavy :size="27" weight="duotone" /></span>
@@ -220,19 +368,21 @@ onBeforeUnmount(() => {
           <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhMoneyWavy :size="27" weight="duotone" /></span>
           <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Secure mobile money</p>
           <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">Pay {{ props.plan?.currency }} {{ Number(props.plan?.payment_total || props.plan?.price || 0).toLocaleString('en-UG') }}</h2>
-          <p v-if="Number(props.plan?.payment_fee || 0)" class="mt-2 text-sm text-white/45">Package {{ props.plan?.currency }} {{ Number(props.plan?.price || 0).toLocaleString('en-UG') }} plus estimated Relworx fee {{ props.plan?.currency }} {{ Number(props.plan?.payment_fee || 0).toLocaleString('en-UG') }}.</p>
+          <p v-if="Number(props.plan?.payment_fee || 0)" class="mt-2 text-sm text-white/45">Access {{ props.plan?.currency }} {{ Number(props.plan?.price || 0).toLocaleString('en-UG') }} plus estimated Relworx fee {{ props.plan?.currency }} {{ Number(props.plan?.payment_fee || 0).toLocaleString('en-UG') }}.</p>
           <p class="mt-3 text-white/50">{{ props.plan?.name }} · MTN MoMo or Airtel Money</p>
 
-          <div v-if="paidPurchase" class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-5">
+          <div v-if="paidPurchase || paidSubscription" class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-5">
             <PhCheckCircle :size="34" class="text-[var(--app-accent)]" weight="fill" />
             <h3 class="mt-4 text-xl font-black">Payment confirmed</h3>
-            <p class="mt-2 text-sm leading-6 text-white/60">Your package was unlocked automatically.</p>
-            <a v-if="paidPurchase.paid_image_url" :href="paidPurchase.paid_image_url" target="_blank" rel="noopener" class="mt-5 block overflow-hidden rounded-xl border border-white/10 bg-black/20">
+            <p v-if="paidSubscription" class="mt-2 text-sm leading-6 text-white/60">Your Weekly Plan is active until {{ new Date(paidSubscription.access_ends_at).toLocaleString('en-UG') }}. Current and new weekly packages will appear in your account.</p>
+            <p v-else class="mt-2 text-sm leading-6 text-white/60">Your package was unlocked automatically.</p>
+            <a v-if="paidPurchase?.paid_image_url" :href="paidPurchase.paid_image_url" target="_blank" rel="noopener" class="mt-5 block overflow-hidden rounded-xl border border-white/10 bg-black/20">
               <img :src="paidPurchase.paid_image_url" :alt="`${paidPurchase.package.name} paid package image`" class="max-h-[26rem] w-full object-contain" decoding="async">
               <span class="block border-t border-white/10 px-4 py-2 text-center text-xs font-bold text-white/55">Open full image</span>
             </a>
-            <div class="mt-5 border-t border-white/10 pt-4"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-xl font-black tracking-wider text-[var(--app-accent)]">{{ paidPurchase.code }}</code></div>
-            <button type="button" @click="openBetslip(paidPurchase)" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></button>
+            <div v-if="paidPurchase" class="mt-5 border-t border-white/10 pt-4"><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all text-xl font-black tracking-wider text-[var(--app-accent)]">{{ paidPurchase.code }}</code></div>
+            <button v-if="paidPurchase" type="button" @click="openBetslip(paidPurchase)" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]">Open betslip <PhArrowRight :size="18" /></button>
+            <button v-else type="button" class="mt-5 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]" @click="emit('switch', 'account')">View weekly packages <PhArrowRight :size="18" /></button>
             <a v-if="payment?.receipt_url" :href="payment.receipt_url" target="_blank" rel="noopener" class="mt-3 flex min-h-11 items-center justify-center gap-2 border border-white/15 px-5 text-sm font-bold text-white/70"><PhReceipt :size="17" /> View receipt</a>
           </div>
 
@@ -246,12 +396,58 @@ onBeforeUnmount(() => {
 
           <form v-else class="mt-7 grid gap-4" @submit.prevent="startPayment">
             <label class="grid gap-2 text-sm font-semibold">Mobile-money number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"><small class="font-normal text-white/40">Use the MTN or Airtel number that will approve the payment.</small></label>
+            <div v-if="paymentConflict" class="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-amber-50">
+              <strong class="block text-sm">Do not pay twice</strong>
+              <p class="mt-1 text-sm leading-6 text-amber-100/75">{{ paymentConflict.detail }}</p>
+              <code v-if="paymentConflict.payment?.reference" class="mt-2 block text-xs text-amber-100/60">{{ paymentConflict.payment.reference }}</code>
+              <button type="button" class="mt-3 text-sm font-extrabold underline underline-offset-4" :disabled="loading" @click="checkConflictingPayment">{{ paymentConflict.payment?.id ? 'Check existing payment' : 'Open my account' }}</button>
+            </div>
             <p v-if="paymentRetryable || paymentNeedsReview" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100">{{ payment.customer_message || 'The payment was not completed. You can try again.' }}</p>
-            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
-            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
+            <p v-if="error && !paymentConflict" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview || paymentConflict">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
             <p class="text-center text-xs leading-5 text-white/35">Access unlocks only after Relworx confirms the exact amount, currency, and transaction reference.</p>
           </form>
           <p v-if="paymentPending && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>
+        </template>
+
+        <template v-else-if="isRecoverySetup">
+          <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhLockKey :size="27" weight="duotone" /></span>
+          <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Account recovery</p>
+          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">Set answers you can remember.</h2>
+          <p class="mt-3 text-sm leading-6 text-white/50">These two answers can reset your password. They are stored securely and are never shown again.</p>
+          <form class="mt-7 grid gap-5" @submit.prevent="saveRecoveryProfile">
+            <label class="grid gap-2 text-sm font-semibold">Current password<input v-model="form.current_password" required minlength="4" type="password" autocomplete="current-password" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <label class="grid gap-2 text-sm font-semibold">What private word or phrase will you always remember?<input v-model="form.recovery_private_phrase" required minlength="8" maxlength="128" autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"><small class="font-normal leading-5 text-white/40">Choose something only you recognize. Do not use a PIN, password, financial detail, or deeply sensitive secret.</small></label>
+            <label class="grid gap-2 text-sm font-semibold">What nickname or special phrase reminds you of someone important in your life?<input v-model="form.recovery_life_phrase" required minlength="8" maxlength="128" autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"><small class="font-normal leading-5 text-white/40">Do not include their full name, phone number, or sensitive personal information.</small></label>
+            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] disabled:opacity-50" :disabled="loading">{{ loading ? 'Saving securely…' : 'Save recovery answers' }} <PhArrowRight :size="18" /></button>
+          </form>
+        </template>
+
+        <template v-else-if="isForgotPassword">
+          <span class="grid size-12 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhLockKey :size="27" weight="duotone" /></span>
+          <p class="mt-7 text-xs font-bold uppercase tracking-[.18em] text-[var(--app-accent)]">Password recovery</p>
+          <h2 class="mt-2 pr-10 text-3xl font-black tracking-[-.055em] sm:text-4xl">{{ recoveryStep === 'complete' ? 'Password reset.' : 'Get back into your account.' }}</h2>
+          <form v-if="recoveryStep === 'phone'" class="mt-7 grid gap-4" @submit.prevent="startRecovery">
+            <p class="text-sm leading-6 text-white/50">Enter the phone number linked to your BK membership.</p>
+            <label class="grid gap-2 text-sm font-semibold">Phone number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] disabled:opacity-50" :disabled="loading">{{ loading ? 'Checking…' : 'Continue' }} <PhArrowRight :size="18" /></button>
+          </form>
+          <form v-else-if="recoveryStep === 'answers'" class="mt-7 grid gap-4" @submit.prevent="completeRecovery">
+            <p class="text-sm leading-6 text-white/50">Enter both answers exactly as you remember them. Capital letters and extra spaces do not matter.</p>
+            <label class="grid gap-2 text-sm font-semibold">What private word or phrase will you always remember?<input v-model="form.recovery_private_phrase" required autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <label class="grid gap-2 text-sm font-semibold">What nickname or special phrase reminds you of someone important in your life?<input v-model="form.recovery_life_phrase" required autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <label class="grid gap-2 text-sm font-semibold">New password<input v-model="form.new_password" required minlength="4" type="password" autocomplete="new-password" placeholder="Minimum 4 characters" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <label class="grid gap-2 text-sm font-semibold">Confirm new password<input v-model="form.password_confirm" required minlength="4" type="password" autocomplete="new-password" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"></label>
+            <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] disabled:opacity-50" :disabled="loading">{{ loading ? 'Resetting…' : 'Reset password' }} <PhArrowRight :size="18" /></button>
+          </form>
+          <div v-else class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-5">
+            <PhCheckCircle :size="34" class="text-[var(--app-accent)]" weight="fill" />
+            <p class="mt-3 text-sm leading-6 text-white/65">{{ recoveryMessage }}</p>
+            <button type="button" class="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]" @click="emit('switch', 'login')">Return to sign in</button>
+          </div>
         </template>
 
         <template v-else-if="isAccount">
@@ -261,7 +457,18 @@ onBeforeUnmount(() => {
           <p class="mt-2 text-sm text-white/45">{{ auth.user?.phone }}</p>
           <p v-if="error" class="mt-6 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ error }}</p>
           <div v-if="loading" class="mt-7 h-52 animate-pulse rounded-2xl bg-white/5"></div>
-          <div v-else-if="purchases.length" class="mt-7 grid gap-3">
+          <template v-else>
+            <section v-if="activeSubscription" class="mt-7 rounded-2xl border border-[var(--app-accent)]/35 bg-[var(--app-accent)]/10 p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-[.15em] text-[var(--app-accent)]">Weekly Plan active</p><h3 class="mt-1 text-xl font-black">{{ subscriptionCountdown(activeSubscription.access_ends_at) }}</h3></div><span class="rounded-full bg-[var(--app-accent)] px-3 py-1 text-[10px] font-black uppercase text-[var(--app-accent-ink)]">Active</span></div>
+              <p class="mt-2 text-xs text-white/50">Access ends {{ new Date(activeSubscription.access_ends_at).toLocaleString('en-UG') }}. Renewal opens after expiry.</p>
+              <div v-if="weeklyContent.length" class="mt-5 grid gap-3">
+                <article v-for="item in weeklyContent" :key="item.id" class="rounded-xl border border-white/10 bg-[#0a0f0c] p-4"><div class="flex items-start justify-between gap-3"><div><p class="text-[10px] font-bold uppercase tracking-wider text-white/35">{{ item.package_type }}</p><h4 class="mt-1 font-extrabold">{{ item.name }}</h4></div><span class="text-[10px] font-bold text-white/45">{{ item.is_open ? countdown(item.closes_at) : 'Closed' }}</span></div><a v-if="item.paid_image_url" :href="item.paid_image_url" target="_blank" rel="noopener" class="mt-3 block overflow-hidden rounded-lg border border-white/10"><img :src="item.paid_image_url" :alt="`${item.name} weekly package image`" class="max-h-64 w-full bg-black/20 object-contain"></a><div class="mt-3 flex items-end justify-between gap-3"><div><span class="text-[10px] font-bold uppercase tracking-wider text-white/35">Betslip code</span><code class="mt-1 block break-all font-black text-[var(--app-accent)]">{{ item.code }}</code></div><button type="button" class="shrink-0 bg-[var(--app-accent)] px-3 py-2 text-xs font-black text-[var(--app-accent-ink)]" @click="openWeeklyBetslip(item)">Open betslip</button></div></article>
+              </div>
+              <p v-else class="mt-5 rounded-xl border border-dashed border-white/15 p-4 text-sm text-white/55">No weekly packages have been published yet. New uploads will appear here automatically.</p>
+            </section>
+            <section v-else-if="expiredSubscription" class="mt-7 rounded-2xl border border-white/10 bg-white/[.025] p-4"><p class="text-xs font-black uppercase tracking-wider text-white/40">Weekly Plan</p><h3 class="mt-2 text-lg font-black">Your access has expired</h3><p class="mt-1 text-sm text-white/50">Join again for a new seven-day access window.</p><button type="button" class="mt-4 bg-[var(--app-accent)] px-4 py-2.5 text-sm font-black text-[var(--app-accent-ink)]" @click="goToWeeklyPlan">Renew Weekly Plan</button></section>
+
+          <div v-if="purchases.length" class="mt-7 grid gap-3">
             <p v-if="!visiblePurchases.length" class="text-sm text-white/60">No active packages. Choose All purchases to see previous payments and access.</p>
             <article v-for="purchaseItem in visiblePurchases" :key="purchaseItem.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
               <div class="flex min-w-0 flex-wrap items-center justify-between gap-3"><h3 class="min-w-0 break-words font-bold">{{ purchaseItem.package.name }}</h3><span :class="['shrink-0 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider', purchaseItem.is_paid ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'bg-white/7 text-white/55']">{{ purchaseItem.status }}</span></div>
@@ -274,8 +481,10 @@ onBeforeUnmount(() => {
               <button v-if="!purchaseItem.is_paid && purchaseItem.package.is_open" type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Retry payment</button>
             </article>
           </div>
-          <div v-else class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-center"><PhLockKey :size="28" class="mx-auto text-[var(--app-accent)]" /><p class="mt-3 font-bold">No access requests yet</p><p class="mt-1 text-sm text-white/45">Choose a VIP pass from the page to send your first request.</p></div>
+          <div v-else-if="!activeSubscription" class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-center"><PhLockKey :size="28" class="mx-auto text-[var(--app-accent)]" /><p class="mt-3 font-bold">No access requests yet</p><p class="mt-1 text-sm text-white/45">Choose a VIP pass from the page to send your first request.</p></div>
+          </template>
           <fieldset class="mt-5 grid gap-3 border-t border-white/15 pt-4"><legend class="text-sm font-bold">Notification preferences</legend><label class="flex gap-3 text-sm"><input v-model="preferences.product_updates" type="checkbox" @change="savePreferences"> Product updates</label><label class="flex gap-3 text-sm"><input v-model="preferences.closing_reminders" type="checkbox" @change="savePreferences"> Package closing reminders</label><label class="flex gap-3 text-sm"><input v-model="preferences.performance_measurement" type="checkbox" @change="savePreferences"> Help measure website performance</label><small class="text-white/45">Service notifications appear in your account. Optional messages follow your preferences.</small></fieldset>
+          <button type="button" class="mt-5 w-full rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-white/70 hover:border-[var(--app-accent)] hover:text-white" @click="emit('switch', 'recovery-setup', { required: false })">Change recovery answers</button>
           <button type="button" class="mt-6 inline-flex items-center gap-2 text-sm font-bold text-white/55 hover:text-white" @click="signOut"><PhSignOut :size="17" /> Sign out</button>
         </template>
 
@@ -292,10 +501,13 @@ onBeforeUnmount(() => {
             <label class="grid gap-2 text-sm font-semibold">Phone number<input v-model.trim="form.phone" required autocomplete="tel" inputmode="tel" placeholder="07XXXXXXXX" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
             <label class="grid gap-2 text-sm font-semibold">Password<input v-model="form.password" required minlength="4" type="password" :autocomplete="registering ? 'new-password' : 'current-password'" :placeholder="registering ? 'Minimum 4 characters' : 'Your password'" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
             <label v-if="registering" class="grid gap-2 text-sm font-semibold">Confirm password<input v-model="form.password_confirm" required minlength="4" type="password" autocomplete="new-password" placeholder="Enter the password again" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none placeholder:text-white/25 focus:border-[var(--app-accent)]"></label>
+            <label v-if="registering" class="grid gap-2 text-sm font-semibold">What private word or phrase will you always remember?<input v-model="form.recovery_private_phrase" required minlength="8" maxlength="128" autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"><small class="font-normal leading-5 text-white/40">Choose something only you recognize. Never use a PIN, password, financial detail, or deeply sensitive secret.</small></label>
+            <label v-if="registering" class="grid gap-2 text-sm font-semibold">What nickname or special phrase reminds you of someone important in your life?<input v-model="form.recovery_life_phrase" required minlength="8" maxlength="128" autocomplete="off" class="rounded-xl border border-white/12 bg-[#080d0a] px-4 py-3.5 text-white outline-none focus:border-[var(--app-accent)]"><small class="font-normal leading-5 text-white/40">Do not include their full name, phone number, or sensitive personal information.</small></label>
             <p v-if="error" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
             <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading">{{ loading ? 'Please wait...' : registering ? 'Create account' : 'Continue securely' }} <PhArrowRight :size="18" /></button>
           </form>
           <p class="mt-6 text-sm text-white/45">{{ registering ? 'Already registered?' : 'New to BK?' }} <button type="button" class="font-bold text-white underline decoration-[var(--app-accent)] underline-offset-4" @click="emit('switch', registering ? 'login' : 'register')">{{ registering ? 'Sign in' : 'Create account' }}</button></p>
+          <button v-if="!registering" type="button" class="mt-3 text-sm font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'forgot-password')">Forgot your password?</button>
         </template>
       </section>
     </div>

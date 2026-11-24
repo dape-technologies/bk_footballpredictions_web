@@ -9,6 +9,8 @@ import { useAuthStore } from '../stores/auth'
 const freePick = ref(null)
 const freePickSeen = ref(false)
 const packages = ref([])
+const weeklyPlan = ref(null)
+const packageTab = ref('one-off')
 const wins = ref([])
 const testimonials = ref([])
 const loading = ref(true)
@@ -81,6 +83,22 @@ async function requestAccess(plan) {
   finally { submitting.value = null }
 }
 
+async function requestWeeklyAccess() {
+  if (!auth.isAuthenticated) {
+    openDialog?.('login')
+    return
+  }
+  submitting.value = 'weekly'
+  errors.value.subscription = ''
+  try {
+    const order = await api('/v1/me/subscriptions/', { method: 'POST', body: '{}' })
+    openDialog?.('payment', { plan: weeklyPlan.value, purchase: order, checkoutType: 'subscription' })
+  } catch (error) {
+    if (error.status === 409 && error.message.includes('still active')) openDialog?.('account')
+    else errors.value.subscription = error.message
+  } finally { submitting.value = null }
+}
+
 function observePackageCards() {
   document.querySelectorAll('[data-package-id]').forEach((element) => {
     if (!viewedPackageIds.has(Number(element.dataset.packageId))) packageObserver?.observe(element)
@@ -91,6 +109,7 @@ async function loadPublicContent(initial = false) {
   const resources = [
     ['freePick', freePick, '/v1/free-pick/'],
     ['packages', packages, '/v1/packages/'],
+    ['weeklyPlan', weeklyPlan, '/v1/weekly-plan/'],
     ['wins', wins, '/v1/recent-wins/'],
     ['testimonials', testimonials, '/v1/testimonials/'],
   ]
@@ -100,6 +119,9 @@ async function loadPublicContent(initial = false) {
     const [name, target] = resources[index]
     if (result.status === 'fulfilled') {
       target.value = result.value
+      errors.value[name] = ''
+    } else if (name === 'weeklyPlan' && result.reason?.status === 404) {
+      target.value = null
       errors.value[name] = ''
     } else if (initial) errors.value[name] = result.reason?.message || 'This section could not be loaded.'
   })
@@ -193,9 +215,14 @@ onBeforeUnmount(() => {
         <p v-if="notice" class="mt-7 rounded-2xl border border-[var(--app-accent)]/30 bg-[var(--app-accent)]/10 p-4 text-sm text-white">{{ notice }}</p>
         <p v-if="errors.subscription" class="mt-7 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">{{ errors.subscription }}</p>
 
+        <div class="mt-7 inline-flex rounded-xl border border-white/12 bg-white/5 p-1" role="tablist" aria-label="Package offers">
+          <button type="button" role="tab" :aria-selected="packageTab === 'one-off'" :class="['rounded-lg px-4 py-2.5 text-sm font-bold transition', packageTab === 'one-off' ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'text-white/50']" @click="packageTab='one-off'">One-off Packages</button>
+          <button type="button" role="tab" :aria-selected="packageTab === 'weekly'" :class="['rounded-lg px-4 py-2.5 text-sm font-bold transition', packageTab === 'weekly' ? 'bg-[var(--app-accent)] text-[var(--app-accent-ink)]' : 'text-white/50']" @click="packageTab='weekly'">Weekly Plan</button>
+        </div>
+
         <div v-if="errors.packages" class="mt-9 break-words rounded-2xl border border-red-400/30 bg-red-500/10 p-5 text-red-200">Packages are temporarily unavailable. {{ errors.packages }}</div>
         <div v-if="loading" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3"><div v-for="n in 3" :key="n" class="h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start animate-pulse bg-white/5 md:w-auto"></div></div>
-        <div v-else-if="packages.length" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
+        <div v-else-if="packageTab === 'one-off' && packages.length" class="mobile-card-rail mt-9 flex gap-4 overflow-x-auto pb-3 md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
           <article v-for="plan in packages" :key="plan.id" :data-package-id="plan.id" class="group flex min-h-[28rem] w-[min(84vw,22rem)] shrink-0 snap-start flex-col overflow-hidden border border-white/12 bg-[#101310] transition duration-300 hover:-translate-y-1 hover:border-[var(--app-accent)]/55 md:w-auto">
             <div class="relative h-48 overflow-hidden bg-[#171d18]">
               <img v-if="plan.image_url" :src="plan.image_url" :alt="`${plan.name} package`" loading="lazy" decoding="async" width="640" height="400" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
@@ -212,7 +239,12 @@ onBeforeUnmount(() => {
             </div>
           </article>
         </div>
-        <div v-else class="mt-9 grid min-h-48 place-items-center border border-dashed border-white/15 px-6 text-center text-white/45">No active packages.</div>
+        <div v-else-if="packageTab === 'one-off'" class="mt-9 grid min-h-48 place-items-center border border-dashed border-white/15 px-6 text-center text-white/45">No active packages.</div>
+        <article v-else class="mt-9 grid gap-8 overflow-hidden border border-white/12 bg-[#101310] p-7 sm:p-10 md:grid-cols-[1fr_auto] md:items-end">
+          <div><span class="text-xs font-black uppercase tracking-[.16em] text-[var(--app-accent)]">Seven-day access</span><h3 class="mt-3 text-4xl font-black tracking-[-.055em]">{{ weeklyPlan?.name || 'Weekly Plan' }}</h3><p class="mt-4 max-w-xl leading-7 text-white/55">{{ weeklyPlan?.description || 'The Weekly Plan is currently being prepared.' }}</p><ul class="mt-6 grid gap-3 text-sm text-white/75"><li>Current weekly packages unlock when payment is confirmed.</li><li>New weekly uploads appear automatically in your account.</li><li>Access ends exactly seven days after confirmation.</li></ul></div>
+          <div v-if="weeklyPlan" class="min-w-48 border-t border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0"><small class="font-bold text-white/40">{{ weeklyPlan.currency }} / 7 days</small><strong class="mt-1 block text-4xl font-black tracking-[-.06em]">{{ money(weeklyPlan.price) }}</strong><button type="button" class="mt-6 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]" :disabled="submitting === 'weekly'" @click="requestWeeklyAccess">{{ submitting === 'weekly' ? 'Processing…' : 'Join Weekly Plan' }} <PhArrowRight :size="17" /></button></div>
+          <p v-else class="text-sm font-semibold text-white/45">Not available right now.</p>
+        </article>
       </div>
     </section>
 
