@@ -213,6 +213,6 @@ onBeforeUnmount(() => {
       </div>
     </footer>
 
-    <AppDialog v-if="dialog" :mode="dialog" v-bind="dialogData" @close="closeDialog" @switch="openDialog" />
+    <AppDialog v-if="dialog" :key="`${dialog}:${dialogData.checkoutType || 'package'}:${dialogData.purchase?.id || ''}`" :mode="dialog" v-bind="dialogData" @close="closeDialog" @switch="openDialog" />
   </div>
 </template>

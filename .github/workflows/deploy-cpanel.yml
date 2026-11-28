@@ -28,6 +28,8 @@ jobs:
           cache: npm
 
       - name: Install and build
+        env:
+          VITE_PAYMENT_SUPPORT_URL: ${{ vars.VITE_PAYMENT_SUPPORT_URL }}
         run: |
           npm ci
           npm run build

@@ -94,3 +94,45 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   const popup = await popupPromise
   await expect(popup).toHaveURL('https://example.com/slips/daily-edge')
 })
+
+test('timed-out checkout can reopen and retry after a confirmed decline', async ({ page }) => {
+  const oldPayment = {
+    ...purchase().latest_payment,
+    status: 'pending',
+    checkout_expires_at: '2020-01-01T00:00:00Z',
+    can_retry: false,
+  }
+  let submissions = 0
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    const json = (body, status = 200, headers = {}) => route.fulfill({ status, headers, json: body })
+    if (path === '/api/v1/auth/csrf/') return json({}, 200, { 'Set-Cookie': 'csrftoken=test; Path=/' })
+    if (path === '/api/v1/auth/me/') return json(member)
+    if (path === '/api/v1/packages/') return json([plan])
+    if (path === '/api/v1/me/purchases/') return json(
+      request.method() === 'POST' ? { ...purchase(), latest_payment: oldPayment } : [{ ...purchase(), latest_payment: oldPayment }],
+    )
+    if (path === '/api/v1/me/payments/31/refresh/') return json({ ...oldPayment, status: 'failed', can_retry: true })
+    if (path === '/api/v1/me/purchases/21/payment-attempts/') {
+      submissions += 1
+      return json({ ...oldPayment, id: 32, status: 'submitted', reference: 'BKP-FRESH123456', can_retry: false,
+        checkout_expires_at: new Date(Date.now() + 900_000).toISOString() }, 202)
+    }
+    return json([])
+  })
+
+  await page.goto('/')
+  const buy = page.getByRole('button', { name: 'Buy slip' })
+  const checkout = page.getByRole('dialog', { name: 'Mobile money checkout' })
+  await buy.click()
+  await expect(checkout.getByText('Payment still being checked')).toBeVisible()
+  await expect(checkout.getByText(oldPayment.reference, { exact: false })).toBeVisible()
+  await expect(checkout.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+  await checkout.getByRole('button', { name: 'Close', exact: true }).last().click()
+  await buy.click()
+  await checkout.getByRole('button', { name: 'Check payment' }).click()
+  await checkout.getByRole('button', { name: 'Try again' }).click()
+  await expect(checkout.getByText('BKP-FRESH123456', { exact: false })).toBeVisible()
+  expect(submissions).toBe(1)
+})
