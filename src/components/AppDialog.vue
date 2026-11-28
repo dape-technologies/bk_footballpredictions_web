@@ -39,6 +39,8 @@ const activeSubscription = computed(() => subscriptions.value.find((item) => ite
   && new Date(item.access_ends_at).getTime() > clock.value) || null)
 const expiredSubscription = computed(() => subscriptions.value.find((item) => item.is_paid
   && new Date(item.access_ends_at).getTime() <= clock.value) || null)
+const unpaidSubscription = computed(() => subscriptions.value.find((item) => !item.is_paid && item.latest_payment && !item.latest_payment.can_retry)
+  || subscriptions.value.find((item) => !item.is_paid && item.latest_payment) || null)
 let clockTimer
 let accountRefreshTimer
 function countdown(value) {
@@ -71,6 +73,10 @@ async function openBetslip(item) {
   } catch (caught) { opened?.close(); error.value = caught.message }
 }
 let pollTimer = null
+let disposed = false
+let checkingConflict = false
+const checkingPayment = ref(false)
+const bkSupportUrl = import.meta.env.VITE_PAYMENT_SUPPORT_URL
 const registering = computed(() => props.mode === 'register')
 const isRecoverySetup = computed(() => props.mode === 'recovery-setup')
 const isForgotPassword = computed(() => props.mode === 'forgot-password')
@@ -83,8 +89,10 @@ const freeTipLive = computed(() => Boolean(freeTip.value && new Date(freeTip.val
 const isPayment = computed(() => props.mode === 'payment')
 const isSubscriptionCheckout = computed(() => props.checkoutType === 'subscription')
 const paymentPending = computed(() => ['submitted', 'pending'].includes(payment.value?.status))
-const paymentRetryable = computed(() => ['failed', 'expired', 'cancelled'].includes(payment.value?.status))
-const paymentNeedsReview = computed(() => payment.value?.status === 'needs_review')
+const paymentRetryable = computed(() => payment.value?.can_retry === true)
+const paymentUnresolved = computed(() => ['created', 'submitted', 'pending', 'needs_review', 'expired'].includes(payment.value?.status))
+const checkoutDeadline = computed(() => Date.parse(payment.value?.checkout_expires_at))
+const waitingForPrompt = computed(() => paymentPending.value && !(clock.value >= checkoutDeadline.value))
 const maximumBirthDate = (() => {
   const date = new Date()
   date.setFullYear(date.getFullYear() - 18)
@@ -127,7 +135,7 @@ async function loadDialogData() {
       if (isSubscriptionCheckout.value) paidSubscription.value = props.purchase
       else paidPurchase.value = props.purchase
     }
-    else if (paymentPending.value) schedulePaymentCheck(1500)
+    else if (waitingForPrompt.value) schedulePaymentCheck(1500)
   }
   if (isFreeTip.value) {
     loading.value = true
@@ -140,30 +148,49 @@ async function loadDialogData() {
 
 function schedulePaymentCheck(delay = 5000) {
   clearTimeout(pollTimer)
-  pollTimer = setTimeout(refreshPayment, delay)
+  if (!disposed && waitingForPrompt.value) {
+    pollTimer = setTimeout(() => {
+      if (waitingForPrompt.value) refreshPayment()
+    }, delay)
+  }
 }
 
 async function loadPaidPurchase() {
-  if (isSubscriptionCheckout.value) paidSubscription.value = await api(`/v1/me/subscriptions/${props.purchase.id}/`)
-  else paidPurchase.value = await api(`/v1/me/purchases/${props.purchase.id}/`)
+  const path = isSubscriptionCheckout.value ? 'subscriptions' : 'purchases'
+  const result = await api(`/v1/me/${path}/${props.purchase.id}/`)
+  if (disposed) return
+  if (!result.is_paid) return emit('switch', 'account')
+  if (isSubscriptionCheckout.value) paidSubscription.value = result
+  else paidPurchase.value = result
 }
 
-async function refreshPayment() {
-  if (!paymentPending.value) return
+async function refreshPayment(id = payment.value?.id) {
+  if (!id || checkingPayment.value || disposed) return
+  clearTimeout(pollTimer)
+  checkingPayment.value = true
+  error.value = ''
   try {
-    const result = await api(`/v1/me/payments/${payment.value.id}/refresh/`, { method: 'POST' })
-    if (result?.id) payment.value = result
-    if (payment.value?.status === 'paid') await loadPaidPurchase()
-    else if (payment.value?.status === 'pending') schedulePaymentCheck()
+    const result = await api(`/v1/me/payments/${id}/refresh/`, { method: 'POST' })
+    if (disposed) return
+    payment.value = result
+    paymentConflict.value = null
+    if (result.status === 'paid') {
+      if (checkingConflict) emit('switch', 'account')
+      else await loadPaidPurchase()
+    }
   } catch (err) {
     error.value = err.message
-    if (paymentPending.value) schedulePaymentCheck(8000)
+  } finally {
+    checkingPayment.value = false
+    schedulePaymentCheck(error.value ? 8000 : 5000)
   }
 }
 
 async function startPayment() {
+  if (loading.value || paymentUnresolved.value || paymentConflict.value || payment.value?.status === 'paid') return
   error.value = ''
   paymentConflict.value = null
+  checkingConflict = false
   loading.value = true
   clearTimeout(pollTimer)
   try {
@@ -174,29 +201,27 @@ async function startPayment() {
       method: 'POST',
       body: JSON.stringify({ phone: form.phone }),
     })
-    if (paymentPending.value) schedulePaymentCheck(2500)
+    if (disposed) return
+    if (payment.value.status === 'paid') await loadPaidPurchase()
+    else schedulePaymentCheck(2500)
   } catch (err) {
     error.value = err.message
     if (['payment_in_progress', 'payment_needs_review', 'already_paid', 'subscription_active'].includes(err.payload?.code)) {
       paymentConflict.value = err.payload
+    } else if (err.payload?.payment?.can_retry) {
+      payment.value = err.payload.payment
+      error.value = ''
     }
   } finally {
     loading.value = false
   }
 }
 
-async function checkConflictingPayment() {
+function checkConflictingPayment() {
   const id = paymentConflict.value?.payment?.id
   if (!id) return emit('switch', 'account')
-  loading.value = true
-  try {
-    payment.value = await api(`/v1/me/payments/${id}/refresh/`, { method: 'POST', body: '{}' })
-    paymentConflict.value = null
-    error.value = ''
-    if (payment.value.status === 'paid') emit('switch', 'account')
-    else if (paymentPending.value) schedulePaymentCheck(2500)
-  } catch (caught) { error.value = caught.message }
-  finally { loading.value = false }
+  checkingConflict = true
+  return refreshPayment(id)
 }
 
 async function submit() {
@@ -328,6 +353,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   clearInterval(clockTimer)
   clearInterval(accountRefreshTimer)
   clearTimeout(pollTimer)
@@ -386,12 +412,17 @@ onBeforeUnmount(() => {
             <a v-if="payment?.receipt_url" :href="payment.receipt_url" target="_blank" rel="noopener" class="mt-3 flex min-h-11 items-center justify-center gap-2 border border-white/15 px-5 text-sm font-bold text-white/70"><PhReceipt :size="17" /> View receipt</a>
           </div>
 
-          <div v-else-if="paymentPending" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5 text-center">
+          <div v-else-if="paymentUnresolved || payment?.status === 'paid'" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5 text-center" aria-live="polite">
             <span class="mx-auto grid size-12 place-items-center rounded-full border border-[var(--app-accent)]/40 text-[var(--app-accent)]"><PhClock :size="25" /></span>
-            <h3 class="mt-4 text-xl font-black">Approve the prompt on your phone</h3>
-            <p class="mt-2 text-sm leading-6 text-white/55">Enter your mobile-money PIN on {{ payment.payer_msisdn }}. This screen checks Relworx automatically.</p>
+            <h3 class="mt-4 text-xl font-black">{{ waitingForPrompt ? 'Approve the prompt on your phone' : payment.status === 'paid' ? 'Payment confirmed' : 'Payment still being checked' }}</h3>
+            <p v-if="waitingForPrompt" class="mt-2 text-sm leading-6 text-white/55">Enter your mobile-money PIN on {{ payment.payer_msisdn }}. This screen checks Relworx automatically.</p>
+            <p v-else-if="paymentUnresolved" class="mt-2 text-sm leading-6 text-white/55">You can close checkout and check again in your account. Wait for the result before paying again.</p>
             <p class="mt-4 text-xs text-white/35">Reference: {{ payment.reference }}</p>
-            <button type="button" class="mt-5 text-sm font-bold text-[var(--app-accent)] underline underline-offset-4" @click="refreshPayment">Check payment now</button>
+            <div class="mt-5 flex flex-wrap justify-center gap-4 text-sm font-bold">
+              <button type="button" class="text-[var(--app-accent)] underline underline-offset-4 disabled:opacity-50" :disabled="checkingPayment" @click="refreshPayment()">{{ checkingPayment ? 'Checking…' : 'Check payment' }}</button>
+              <button v-if="!waitingForPrompt" type="button" class="underline underline-offset-4" @click="emit('close')">Close</button>
+              <a v-if="!waitingForPrompt && paymentUnresolved" :href="bkSupportUrl || 'mailto:support@relworx.com'" class="underline underline-offset-4">{{ bkSupportUrl ? 'Contact BK support' : 'Contact Relworx support' }}</a>
+            </div>
           </div>
 
           <form v-else class="mt-7 grid gap-4" @submit.prevent="startPayment">
@@ -400,14 +431,14 @@ onBeforeUnmount(() => {
               <strong class="block text-sm">Do not pay twice</strong>
               <p class="mt-1 text-sm leading-6 text-amber-100/75">{{ paymentConflict.detail }}</p>
               <code v-if="paymentConflict.payment?.reference" class="mt-2 block text-xs text-amber-100/60">{{ paymentConflict.payment.reference }}</code>
-              <button type="button" class="mt-3 text-sm font-extrabold underline underline-offset-4" :disabled="loading" @click="checkConflictingPayment">{{ paymentConflict.payment?.id ? 'Check existing payment' : 'Open my account' }}</button>
+              <button type="button" class="mt-3 text-sm font-extrabold underline underline-offset-4" :disabled="loading || checkingPayment" @click="checkConflictingPayment">{{ checkingPayment ? 'Checking…' : paymentConflict.payment?.id ? 'Check existing payment' : 'Open my account' }}</button>
             </div>
-            <p v-if="paymentRetryable || paymentNeedsReview" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100">{{ payment.customer_message || 'The payment was not completed. You can try again.' }}</p>
-            <p v-if="error && !paymentConflict" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
-            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || paymentNeedsReview || paymentConflict">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try payment again' : paymentNeedsReview ? 'Contact BK support' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
+            <p v-if="paymentRetryable" class="rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm leading-6 text-amber-100">{{ payment.customer_message || 'The payment was not completed. You can try again.' }}</p>
+            <p v-if="error && (!paymentConflict || checkingConflict)" class="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-200">{{ error }}</p>
+            <button class="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:opacity-50" :disabled="loading || !!paymentConflict">{{ loading ? 'Sending prompt…' : paymentRetryable ? 'Try again' : 'Pay with mobile money' }} <PhArrowRight :size="18" /></button>
             <p class="text-center text-xs leading-5 text-white/35">Access unlocks only after Relworx confirms the exact amount, currency, and transaction reference.</p>
           </form>
-          <p v-if="paymentPending && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>
+          <p v-if="(paymentUnresolved || payment?.status === 'paid') && error" class="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-sm text-amber-100">{{ error }}</p>
         </template>
 
         <template v-else-if="isRecoverySetup">
@@ -468,6 +499,12 @@ onBeforeUnmount(() => {
             </section>
             <section v-else-if="expiredSubscription" class="mt-7 rounded-2xl border border-white/10 bg-white/[.025] p-4"><p class="text-xs font-black uppercase tracking-wider text-white/40">Weekly Plan</p><h3 class="mt-2 text-lg font-black">Your access has expired</h3><p class="mt-1 text-sm text-white/50">Join again for a new seven-day access window.</p><button type="button" class="mt-4 bg-[var(--app-accent)] px-4 py-2.5 text-sm font-black text-[var(--app-accent-ink)]" @click="goToWeeklyPlan">Renew Weekly Plan</button></section>
 
+          <section v-if="!activeSubscription && unpaidSubscription" class="mt-7 rounded-xl border border-white/15 p-4">
+            <h3 class="font-bold">Weekly Plan payment</h3>
+            <p class="mt-1 text-sm text-white/55">{{ unpaidSubscription.latest_payment.customer_message }}</p>
+            <button type="button" class="mt-3 text-sm font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: unpaidSubscription.plan, purchase: unpaidSubscription, checkoutType: 'subscription' })">{{ unpaidSubscription.latest_payment.can_retry ? 'Retry Weekly Plan payment' : 'View Weekly Plan payment' }}</button>
+          </section>
+
           <div v-if="purchases.length" class="mt-7 grid gap-3">
             <p v-if="!visiblePurchases.length" class="text-sm text-white/60">No active packages. Choose All purchases to see previous payments and access.</p>
             <article v-for="purchaseItem in visiblePurchases" :key="purchaseItem.id" class="rounded-2xl border border-white/10 bg-[#0a0f0c] p-4">
@@ -478,7 +515,7 @@ onBeforeUnmount(() => {
               <details v-if="purchaseItem.access_history?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Betslip access history</summary><p v-for="(access, index) in purchaseItem.access_history" :key="index">Opened {{ new Date(access).toLocaleString('en-UG') }}</p></details>
               <a v-if="purchaseItem.latest_payment?.receipt_url" :href="purchaseItem.latest_payment.receipt_url" target="_blank" rel="noopener" class="mt-3 block text-sm font-bold text-[var(--app-accent)]">Open receipt / save as PDF</a>
               <details v-if="purchaseItem.payment_timeline?.length" class="mt-3 text-xs text-white/60"><summary class="cursor-pointer py-2">Payment history</summary><ol class="grid gap-3"><li v-for="attempt in purchaseItem.payment_timeline" :key="attempt.reference"><strong>{{ attempt.reference }} · {{ attempt.status }}</strong><p>{{ new Date(attempt.created_at).toLocaleString('en-UG') }}</p><p v-if="attempt.customer_message">{{ attempt.customer_message }}</p></li></ol></details>
-              <button v-if="!purchaseItem.is_paid && purchaseItem.package.is_open" type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">Retry payment</button>
+              <button v-if="!purchaseItem.is_paid && (purchaseItem.package.is_open || (purchaseItem.latest_payment && !purchaseItem.latest_payment.can_retry))" type="button" class="mt-4 text-xs font-bold text-[var(--app-accent)] underline underline-offset-4" @click="emit('switch', 'payment', { plan: purchaseItem.package, purchase: purchaseItem })">{{ purchaseItem.latest_payment ? purchaseItem.latest_payment.can_retry ? 'Retry payment' : 'View payment' : 'Pay now' }}</button>
             </article>
           </div>
           <div v-else-if="!activeSubscription" class="mt-7 rounded-2xl border border-dashed border-white/15 p-6 text-center"><PhLockKey :size="28" class="mx-auto text-[var(--app-accent)]" /><p class="mt-3 font-bold">No access requests yet</p><p class="mt-1 text-sm text-white/45">Choose a VIP pass from the page to send your first request.</p></div>

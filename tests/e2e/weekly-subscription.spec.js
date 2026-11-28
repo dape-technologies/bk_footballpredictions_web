@@ -99,7 +99,7 @@ test('weekly checkout unlocks the subscriber feed', async ({ page }) => {
   await expect(page.getByText('Payment confirmed')).toBeVisible({ timeout: 7000 })
   await page.getByRole('button', { name: 'View weekly packages' }).click()
 
-  await expect(page.getByText('Weekly Plan active')).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Member access' }).getByText('Weekly Plan active', { exact: true })).toBeVisible()
   await expect(page.getByText('Saturday Accumulator')).toBeVisible()
   await expect(page.getByText('BK-WEEK-91')).toBeVisible()
   await expect(page.getByText('Renewal opens after expiry.')).toBeVisible()
