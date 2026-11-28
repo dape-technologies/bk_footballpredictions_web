@@ -56,6 +56,7 @@ const payment = (paid = false) => ({
   product_name: 'Weekly Plan',
   checkout_type: 'subscription',
   status: paid ? 'paid' : 'pending',
+  checkout_expires_at: new Date(Date.now() + 120_000).toISOString(),
   payer_msisdn: '+256702000001',
   receipt_url: paid ? '/api/v1/me/payments/55/receipt/' : '',
 })
