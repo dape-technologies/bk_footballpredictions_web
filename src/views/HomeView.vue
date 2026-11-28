@@ -1,6 +1,7 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
-import { PhArrowRight, PhCheckCircle, PhClock, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
+import { computed, inject, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { PhArrowRight, PhCheckCircle, PhClock, PhCrown, PhLightning, PhMoneyWavy, PhReceipt, PhShieldCheck, PhTrendUp, PhTrophy, PhWallet } from '@phosphor-icons/vue'
 import { api } from '../api/client'
 import { trackPackageView } from '../telemetry'
 import HeroWordmark from '../components/HeroWordmark.vue'
@@ -13,17 +14,24 @@ const weeklyPlan = ref(null)
 const packageTab = ref('one-off')
 const wins = ref([])
 const testimonials = ref([])
+const subscriptions = ref([])
+const membershipLoading = ref(false)
 const loading = ref(true)
 const errors = ref({})
 const notice = ref('')
 const submitting = ref(null)
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const openDialog = inject('openAppDialog')
 let packageObserver
 let contentRefreshTimer
 let freePickExpiryTimer
 const viewedPackageIds = new Set()
 const freePickLive = computed(() => Boolean(freePick.value && new Date(freePick.value.closes_at).getTime() > Date.now()))
+const activeSubscription = computed(() => subscriptions.value.find((item) => item.is_paid
+  && new Date(item.access_starts_at).getTime() <= Date.now()
+  && new Date(item.access_ends_at).getTime() > Date.now()) || null)
 const money = (value) => new Intl.NumberFormat('en-UG').format(value)
 const formatStart = (value) => value
   ? new Intl.DateTimeFormat('en-UG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -41,6 +49,36 @@ function winDetails(win, index) {
 
 function scrollTo(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function openWeeklyOffer() {
+  packageTab.value = 'weekly'
+  if (route.query.offer !== 'weekly' || route.hash !== '#packages') {
+    await router.push({ path: '/', query: { ...route.query, offer: 'weekly' }, hash: '#packages' })
+  }
+  await nextTick()
+  scrollTo('packages')
+}
+
+function handleMembershipAction() {
+  if (activeSubscription.value) openDialog?.('account')
+  else openWeeklyOffer()
+}
+
+async function loadMembershipState() {
+  if (!auth.isAuthenticated) {
+    subscriptions.value = []
+    membershipLoading.value = false
+    return
+  }
+  membershipLoading.value = true
+  try {
+    subscriptions.value = await api('/v1/me/subscriptions/')
+  } catch {
+    subscriptions.value = []
+  } finally {
+    membershipLoading.value = false
+  }
 }
 
 function scheduleFreePickExpiry() {
@@ -94,9 +132,17 @@ async function requestWeeklyAccess() {
     const order = await api('/v1/me/subscriptions/', { method: 'POST', body: '{}' })
     openDialog?.('payment', { plan: weeklyPlan.value, purchase: order, checkoutType: 'subscription' })
   } catch (error) {
-    if (error.status === 409 && error.message.includes('still active')) openDialog?.('account')
+    if (error.status === 409 && error.message.includes('still active')) {
+      await loadMembershipState()
+      openDialog?.('account')
+    }
     else errors.value.subscription = error.message
   } finally { submitting.value = null }
+}
+
+function handleWeeklyPlanAction() {
+  if (activeSubscription.value) openDialog?.('account')
+  else requestWeeklyAccess()
 }
 
 function observePackageCards() {
@@ -132,8 +178,19 @@ async function loadPublicContent(initial = false) {
 }
 
 function refreshPublicContent() {
-  if (!document.hidden) loadPublicContent(false)
+  if (!document.hidden) {
+    loadPublicContent(false)
+    loadMembershipState()
+  }
 }
+
+watch(() => auth.isAuthenticated, () => loadMembershipState())
+
+watch(() => route.query.offer, async (offer) => {
+  if (offer !== 'weekly') return
+  packageTab.value = 'weekly'
+  await nextTick()
+}, { immediate: true })
 
 onMounted(async () => {
   packageObserver = new IntersectionObserver((entries) => {
@@ -144,7 +201,8 @@ onMounted(async () => {
       packageObserver.unobserve(entry.target)
     })
   }, { threshold: 0.5 })
-  await loadPublicContent(true)
+  await Promise.all([auth.initialize(), loadPublicContent(true)])
+  await loadMembershipState()
   contentRefreshTimer = window.setInterval(refreshPublicContent, 30_000)
   document.addEventListener('visibilitychange', refreshPublicContent)
 })
@@ -205,6 +263,23 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
+    <section v-if="weeklyPlan" class="border-y border-white/10 bg-[#0d120e] text-[#f2f4ea]" aria-labelledby="weekly-membership-title">
+      <div class="mx-auto grid max-w-7xl gap-6 px-4 py-9 sm:px-6 md:grid-cols-[auto_1fr_auto] md:items-center lg:px-8">
+        <span class="grid size-14 place-items-center rounded-2xl bg-[var(--app-accent)] text-[var(--app-accent-ink)]"><PhCrown :size="29" weight="duotone" /></span>
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[.16em] text-[var(--app-accent)]">Weekly membership</p>
+          <h2 id="weekly-membership-title" class="mt-2 text-2xl font-black tracking-[-.04em] sm:text-3xl">{{ activeSubscription ? 'Your Weekly Plan is active.' : 'Stay covered for the full week.' }}</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">{{ activeSubscription ? 'Your current weekly picks and every new upload are ready in your account.' : 'Unlock current weekly packages and every new upload for seven days with one membership.' }}</p>
+        </div>
+        <div class="md:text-right">
+          <p v-if="!activeSubscription" class="mb-2 text-sm font-bold text-white/45">{{ weeklyPlan.currency }} {{ money(weeklyPlan.price) }} / 7 days</p>
+          <button type="button" class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-accent)] px-6 font-extrabold text-[var(--app-accent-ink)] transition hover:bg-[var(--app-accent-hover)] active:scale-[.98] disabled:cursor-wait disabled:opacity-55 md:w-auto" :disabled="auth.isAuthenticated && membershipLoading" @click="handleMembershipAction">
+            {{ auth.isAuthenticated && membershipLoading ? 'Checking membership...' : activeSubscription ? 'View weekly picks' : 'View Weekly Plan' }} <PhArrowRight :size="18" />
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section id="packages" class="package-stage relative isolate scroll-mt-16 border-y border-white/10 bg-[#090b09] text-[#f2f4ea]">
       <div class="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:px-8">
         <div class="flex items-end justify-between gap-5">
@@ -242,7 +317,7 @@ onBeforeUnmount(() => {
         <div v-else-if="packageTab === 'one-off'" class="mt-9 grid min-h-48 place-items-center border border-dashed border-white/15 px-6 text-center text-white/45">No active packages.</div>
         <article v-else class="mt-9 grid gap-8 overflow-hidden border border-white/12 bg-[#101310] p-7 sm:p-10 md:grid-cols-[1fr_auto] md:items-end">
           <div><span class="text-xs font-black uppercase tracking-[.16em] text-[var(--app-accent)]">Seven-day access</span><h3 class="mt-3 text-4xl font-black tracking-[-.055em]">{{ weeklyPlan?.name || 'Weekly Plan' }}</h3><p class="mt-4 max-w-xl leading-7 text-white/55">{{ weeklyPlan?.description || 'The Weekly Plan is currently being prepared.' }}</p><ul class="mt-6 grid gap-3 text-sm text-white/75"><li>Current weekly packages unlock when payment is confirmed.</li><li>New weekly uploads appear automatically in your account.</li><li>Access ends exactly seven days after confirmation.</li></ul></div>
-          <div v-if="weeklyPlan" class="min-w-48 border-t border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0"><small class="font-bold text-white/40">{{ weeklyPlan.currency }} / 7 days</small><strong class="mt-1 block text-4xl font-black tracking-[-.06em]">{{ money(weeklyPlan.price) }}</strong><button type="button" class="mt-6 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)]" :disabled="submitting === 'weekly'" @click="requestWeeklyAccess">{{ submitting === 'weekly' ? 'Processing…' : 'Join Weekly Plan' }} <PhArrowRight :size="17" /></button></div>
+          <div v-if="weeklyPlan" class="min-w-48 border-t border-white/10 pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0"><small class="font-bold text-white/40">{{ weeklyPlan.currency }} / 7 days</small><strong class="mt-1 block text-4xl font-black tracking-[-.06em]">{{ money(weeklyPlan.price) }}</strong><button type="button" class="mt-6 flex min-h-12 w-full items-center justify-center gap-2 bg-[var(--app-accent)] px-5 font-extrabold text-[var(--app-accent-ink)] disabled:cursor-wait disabled:opacity-55" :disabled="submitting === 'weekly' || (auth.isAuthenticated && membershipLoading)" @click="handleWeeklyPlanAction">{{ submitting === 'weekly' ? 'Processing…' : auth.isAuthenticated && membershipLoading ? 'Checking membership...' : activeSubscription ? 'View weekly picks' : 'Join Weekly Plan' }} <PhArrowRight :size="17" /></button></div>
           <p v-else class="text-sm font-semibold text-white/45">Not available right now.</p>
         </article>
       </div>

@@ -60,7 +60,34 @@ const payment = (paid = false) => ({
   receipt_url: paid ? '/api/v1/me/payments/55/receipt/' : '',
 })
 
+const oneOffPlan = {
+  id: 12,
+  name: 'Daily Edge',
+  slug: 'daily-edge',
+  package_type: 'Accumulator',
+  price: '10000',
+  currency: 'UGX',
+  win_probability: 78,
+  closes_at: '2030-11-23T18:00:00+03:00',
+  image_url: '',
+  is_open: true,
+}
+
+const oneOffPurchase = {
+  id: 72,
+  user: member,
+  package: oneOffPlan,
+  price_snapshot: '10000',
+  currency_snapshot: 'UGX',
+  initiated_at: '2026-11-22T10:00:00+03:00',
+  paid_at: null,
+  is_paid: false,
+  status: 'pending',
+  latest_payment: null,
+}
+
 test('weekly checkout unlocks the subscriber feed', async ({ page }) => {
+  let subscriptionActive = false
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -71,9 +98,12 @@ test('weekly checkout unlocks the subscriber feed', async ({ page }) => {
     if (path === '/api/v1/packages/') return json([])
     if (path === '/api/v1/weekly-plan/') return json(plan)
     if (path === '/api/v1/me/subscriptions/' && request.method() === 'POST') return json(pendingOrder, 201)
-    if (path === '/api/v1/me/subscriptions/' && request.method() === 'GET') return json([paidOrder])
+    if (path === '/api/v1/me/subscriptions/' && request.method() === 'GET') return json(subscriptionActive ? [paidOrder] : [])
     if (path === '/api/v1/me/subscriptions/44/payment-attempts/') return json(payment(false), 202)
-    if (path === '/api/v1/me/payments/55/refresh/') return json(payment(true))
+    if (path === '/api/v1/me/payments/55/refresh/') {
+      subscriptionActive = true
+      return json(payment(true))
+    }
     if (path === '/api/v1/me/subscriptions/44/') return json(paidOrder)
     if (path === '/api/v1/me/purchases/') return json([])
     if (path === '/api/v1/me/preferences/') return json({ preferences: {}, notices: [] })
@@ -103,4 +133,60 @@ test('weekly checkout unlocks the subscriber feed', async ({ page }) => {
   await expect(page.getByText('Saturday Accumulator')).toBeVisible()
   await expect(page.getByText('BK-WEEK-91')).toBeVisible()
   await expect(page.getByText('Renewal opens after expiry.')).toBeVisible()
+})
+
+test('weekly membership banner deep-links to the weekly offer', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+
+    if (path === '/api/v1/auth/me/') return json({ detail: 'Authentication credentials were not provided.' }, 401)
+    if (path === '/api/v1/packages/') return json([oneOffPlan])
+    if (path === '/api/v1/weekly-plan/') return json(plan)
+    if (path === '/api/v1/free-pick/') return json({ detail: 'No free pick.' }, 404)
+    if (path === '/api/v1/predictions/' || path === '/api/v1/recent-wins/' || path === '/api/v1/testimonials/') return json([])
+    return json({ detail: `Unhandled test route: ${path}` }, 404)
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Stay covered for the full week.' })).toBeVisible()
+  await page.getByRole('button', { name: 'View Weekly Plan' }).click()
+
+  await expect(page).toHaveURL(/offer=weekly.*#packages/)
+  await expect(page.getByRole('tab', { name: 'Weekly Plan' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('button', { name: 'Join Weekly Plan' })).toBeVisible()
+
+  await page.goto('/packages?offer=weekly')
+  await expect(page).toHaveURL(/offer=weekly.*#packages/)
+  await expect(page.getByRole('tab', { name: 'Weekly Plan' })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('active weekly member can view weekly picks and still buy a one-off ticket', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    const json = (body, status = 200, headers = {}) => route.fulfill({ status, headers, contentType: 'application/json', body: JSON.stringify(body) })
+
+    if (path === '/api/v1/auth/me/') return json(member)
+    if (path === '/api/v1/auth/csrf/') return json({ detail: 'CSRF cookie set.' }, 200, { 'Set-Cookie': 'csrftoken=test; Path=/' })
+    if (path === '/api/v1/packages/') return json([oneOffPlan])
+    if (path === '/api/v1/weekly-plan/') return json(plan)
+    if (path === '/api/v1/me/subscriptions/') return json([paidOrder])
+    if (path === '/api/v1/me/weekly-content/') return json([])
+    if (path === '/api/v1/me/purchases/' && request.method() === 'GET') return json([])
+    if (path === '/api/v1/me/purchases/' && request.method() === 'POST') return json(oneOffPurchase, 201)
+    if (path === '/api/v1/me/preferences/') return json({ preferences: {}, notices: [] })
+    if (path === '/api/v1/free-pick/') return json({ detail: 'No free pick.' }, 404)
+    if (path === '/api/v1/predictions/' || path === '/api/v1/recent-wins/' || path === '/api/v1/testimonials/') return json([])
+    return json({ detail: `Unhandled test route: ${path}` }, 404)
+  })
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Your Weekly Plan is active.' })).toBeVisible()
+  await page.getByRole('button', { name: 'View weekly picks' }).first().click()
+  await expect(page.getByText('Weekly Plan active')).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await page.getByRole('button', { name: 'Buy slip' }).click()
+  await expect(page.getByRole('heading', { name: 'Pay UGX 10,000' })).toBeVisible()
 })
