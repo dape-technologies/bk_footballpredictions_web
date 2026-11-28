@@ -22,6 +22,7 @@ const router = createRouter({
     { path: '/about', redirect: () => sectionRedirect('#about') },
     { path: '/login', component: HomeView, meta: { guest: true, dialog: 'login' } },
     { path: '/register', component: HomeView, meta: { guest: true, dialog: 'register' } },
+    { path: '/forgot-password', component: HomeView, meta: { guest: true, dialog: 'forgot-password' } },
     { path: '/account', component: HomeView, meta: { auth: true, dialog: 'account' } },
     { path: '/owner/login', component: AdminLoginView, meta: { ownerGuest: true } },
     { path: '/owner/dashboard', component: OwnerDashboard, meta: { owner: true } },
