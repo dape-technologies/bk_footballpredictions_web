@@ -41,6 +41,7 @@ function purchase(paid = false) {
       id: 31,
       reference: 'BKP-TEST123456',
       status: paid ? 'paid' : 'pending',
+      checkout_expires_at: new Date(Date.now() + 120_000).toISOString(),
       provider_message: paid ? 'Payment completed successfully.' : 'Request payment in progress.',
     },
   }
@@ -95,14 +96,19 @@ test('guest authentication resumes checkout and verified payment reveals the pac
   await expect(popup).toHaveURL('https://example.com/slips/daily-edge')
 })
 
-test('timed-out checkout can reopen and retry after a confirmed decline', async ({ page }) => {
+test('checkout counts down for two minutes, stops polling, and can retry after a confirmed decline', async ({ page }) => {
+  const start = Date.UTC(2026, 10, 28, 12)
+  await page.clock.install({ time: start })
+  await page.clock.pauseAt(start + 1000)
   const oldPayment = {
     ...purchase().latest_payment,
     status: 'pending',
-    checkout_expires_at: '2020-01-01T00:00:00Z',
+    checkout_expires_at: new Date(start + 121_000).toISOString(),
     can_retry: false,
   }
   let submissions = 0
+  let checks = 0
+  let declined = false
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -113,11 +119,14 @@ test('timed-out checkout can reopen and retry after a confirmed decline', async 
     if (path === '/api/v1/me/purchases/') return json(
       request.method() === 'POST' ? { ...purchase(), latest_payment: oldPayment } : [{ ...purchase(), latest_payment: oldPayment }],
     )
-    if (path === '/api/v1/me/payments/31/refresh/') return json({ ...oldPayment, status: 'failed', can_retry: true })
+    if (path === '/api/v1/me/payments/31/refresh/') {
+      checks += 1
+      return json(declined ? { ...oldPayment, status: 'failed', can_retry: true } : oldPayment)
+    }
     if (path === '/api/v1/me/purchases/21/payment-attempts/') {
       submissions += 1
       return json({ ...oldPayment, id: 32, status: 'submitted', reference: 'BKP-FRESH123456', can_retry: false,
-        checkout_expires_at: new Date(Date.now() + 900_000).toISOString() }, 202)
+        checkout_expires_at: new Date(start + 256_000).toISOString() }, 202)
     }
     return json([])
   })
@@ -126,13 +135,25 @@ test('timed-out checkout can reopen and retry after a confirmed decline', async 
   const buy = page.getByRole('button', { name: 'Buy slip' })
   const checkout = page.getByRole('dialog', { name: 'Mobile money checkout' })
   await buy.click()
-  await expect(checkout.getByText('Payment still being checked')).toBeVisible()
+  const timer = checkout.getByRole('timer')
+  await expect(timer).toContainText('2:00')
+  await page.clock.fastForward(30_000)
+  await expect(timer).toContainText('1:30')
+  await expect.poll(() => checks).toBe(1)
+  await page.clock.fastForward(90_000)
+  await expect(checkout.getByRole('heading', { name: 'Checkout timed out' })).toBeVisible()
+  await expect(timer).toHaveCount(0)
+  await page.clock.fastForward(15_000)
+  expect(checks).toBe(1)
   await expect(checkout.getByText(oldPayment.reference, { exact: false })).toBeVisible()
   await expect(checkout.getByRole('button', { name: 'Try again' })).toHaveCount(0)
   await checkout.getByRole('button', { name: 'Close', exact: true }).last().click()
   await buy.click()
+  await expect(checkout.getByRole('heading', { name: 'Checkout timed out' })).toBeVisible()
+  declined = true
   await checkout.getByRole('button', { name: 'Check payment' }).click()
   await checkout.getByRole('button', { name: 'Try again' }).click()
   await expect(checkout.getByText('BKP-FRESH123456', { exact: false })).toBeVisible()
+  await expect(timer).toContainText('2:00')
   expect(submissions).toBe(1)
 })

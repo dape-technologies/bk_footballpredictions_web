@@ -83,7 +83,12 @@ const paymentPending = computed(() => ['submitted', 'pending'].includes(payment.
 const paymentRetryable = computed(() => payment.value?.can_retry === true)
 const paymentUnresolved = computed(() => ['created', 'submitted', 'pending', 'needs_review', 'expired'].includes(payment.value?.status))
 const checkoutDeadline = computed(() => Date.parse(payment.value?.checkout_expires_at))
-const waitingForPrompt = computed(() => paymentPending.value && !(clock.value >= checkoutDeadline.value))
+const checkoutExpired = computed(() => paymentUnresolved.value && clock.value >= checkoutDeadline.value)
+const waitingForPrompt = computed(() => paymentPending.value && clock.value < checkoutDeadline.value)
+const checkoutCountdown = computed(() => {
+  const seconds = Math.max(0, Math.ceil((checkoutDeadline.value - clock.value) / 1000))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+})
 const maximumBirthDate = (() => {
   const date = new Date()
   date.setFullYear(date.getFullYear() - 18)
@@ -141,6 +146,7 @@ function schedulePaymentCheck(delay = 5000) {
   clearTimeout(pollTimer)
   if (!disposed && waitingForPrompt.value) {
     pollTimer = setTimeout(() => {
+      clock.value = Date.now()
       if (waitingForPrompt.value) refreshPayment()
     }, delay)
   }
@@ -263,6 +269,9 @@ async function openWeeklyBetslip(item) {
 }
 
 watch(() => props.mode, () => { loadDialogData() })
+watch(waitingForPrompt, (waiting) => {
+  if (!waiting) clearTimeout(pollTimer)
+})
 
 onMounted(() => {
   clockTimer = setInterval(() => { clock.value = Date.now() }, 1000)
@@ -338,9 +347,14 @@ onBeforeUnmount(() => {
 
           <div v-else-if="paymentUnresolved || payment?.status === 'paid'" class="mt-7 rounded-2xl border border-white/10 bg-[#0a0f0c] p-5 text-center" aria-live="polite">
             <span class="mx-auto grid size-12 place-items-center rounded-full border border-[var(--app-accent)]/40 text-[var(--app-accent)]"><PhClock :size="25" /></span>
-            <h3 class="mt-4 text-xl font-black">{{ waitingForPrompt ? 'Approve the prompt on your phone' : payment.status === 'paid' ? 'Payment confirmed' : 'Payment still being checked' }}</h3>
+            <h3 v-if="waitingForPrompt" class="mt-4 text-xl font-black">Approve the prompt on your phone</h3>
+            <h3 v-else-if="checkoutExpired" class="mt-4 text-xl font-black">Checkout timed out</h3>
+            <h3 v-else class="mt-4 text-xl font-black">{{ payment.status === 'paid' ? 'Payment confirmed' : 'Payment still being checked' }}</h3>
             <p v-if="waitingForPrompt" class="mt-2 text-sm leading-6 text-white/55">Enter your mobile-money PIN on {{ payment.payer_msisdn }}. This screen checks Relworx automatically.</p>
-            <p v-else-if="paymentUnresolved" class="mt-2 text-sm leading-6 text-white/55">You can close checkout and check again in your account. Wait for the result before paying again.</p>
+            <p v-if="waitingForPrompt" role="timer" aria-live="off" class="mt-4 inline-flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/75">
+              <span>Time remaining</span><span class="font-black tabular-nums text-[var(--app-accent)]">{{ checkoutCountdown }}</span>
+            </p>
+            <p v-else-if="paymentUnresolved" class="mt-2 text-sm leading-6 text-white/55">{{ checkoutExpired ? 'Automatic checks have stopped. ' : '' }}You can close checkout and check again in your account. Wait for the result before paying again.</p>
             <p class="mt-4 text-xs text-white/35">Reference: {{ payment.reference }}</p>
             <div class="mt-5 flex flex-wrap justify-center gap-4 text-sm font-bold">
               <button type="button" class="text-[var(--app-accent)] underline underline-offset-4 disabled:opacity-50" :disabled="checkingPayment" @click="refreshPayment()">{{ checkingPayment ? 'Checking…' : 'Check payment' }}</button>
